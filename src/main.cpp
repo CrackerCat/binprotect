@@ -1,13 +1,13 @@
 #include <binwrite/binary/portable_executable.hpp>
-#include <binwrite/disassembler/mnemonic.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
 #include <fstream>
-#include <array>
 #include <string>
 #include <random>
+
+#include "mba/mba.hpp"
 
 std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
 {
@@ -64,7 +64,15 @@ std::int32_t main()
 	pe.decompress();
 	pe.parse();
 
-	// obfuscate
+	for (const auto& basic_block : pe.basic_blocks())
+	{
+		constexpr std::uint32_t mba_passes = 4;
+
+		for (std::uint32_t i = 0; i < mba_passes; i++)
+		{
+			binprotect::mba::do_pass(pe, *basic_block);
+		}
+	}
 
 	pe.update_rva_references();
 

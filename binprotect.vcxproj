@@ -166,6 +166,7 @@
     <ClCompile Include="ext\portable-executable\relocations_directory.cpp" />
     <ClCompile Include="ext\portable-executable\section_header.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\mba\mba.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp" />
@@ -193,6 +194,7 @@
     <ClInclude Include="ext\portable-executable\relocations_directory.hpp" />
     <ClInclude Include="ext\portable-executable\resource_directory.hpp" />
     <ClInclude Include="ext\portable-executable\section_header.hpp" />
+    <ClInclude Include="src\mba\mba.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
