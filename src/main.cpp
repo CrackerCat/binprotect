@@ -1,0 +1,77 @@
+#include <binwrite/binary/portable_executable.hpp>
+#include <binwrite/disassembler/mnemonic.hpp>
+
+#include <spdlog/spdlog.h>
+
+#include <cstdint>
+#include <fstream>
+#include <array>
+#include <string>
+#include <random>
+
+std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
+{
+	std::ifstream file(path, std::ios::binary);
+
+	if (file.is_open())
+	{
+		return { std::istreambuf_iterator(file), { } };
+	}
+
+	return { };
+}
+
+void write_file_to_disk(const std::string& path, const std::vector<std::uint8_t>& buffer)
+{
+	std::ofstream file(path, std::ios::binary);
+
+	if (file.is_open())
+	{
+		file.write(reinterpret_cast<const char*>(buffer.data()), static_cast<std::streamsize>(buffer.size()));
+	}
+}
+
+void erase_unused_data_directories(binwrite::portable_executable_t& pe)
+{
+	const auto nt_headers = pe.image()->nt_headers();
+
+	auto& exception_directory = nt_headers->optional_header.data_directories.exception_directory;
+
+	if (exception_directory.present())
+	{
+		exception_directory.virtual_address = 0;
+		exception_directory.size = 0;
+
+		spdlog::warn("exception directory present when exceptions are not currently supported");
+	}
+}
+
+std::int32_t main()
+{
+	std::vector<std::uint8_t> buffer = read_file_from_disk("input.exe");
+
+	if (buffer.empty())
+	{
+		spdlog::error("unable to read input file");
+
+		return 1;
+	}
+
+	binwrite::portable_executable_t pe(std::move(buffer));
+
+	erase_unused_data_directories(pe);
+
+	pe.decompress();
+	pe.parse();
+
+	// obfuscate
+
+	pe.update_rva_references();
+
+	// we aren't dealing with compression right now
+	//pe.compress();
+
+	write_file_to_disk("output.exe", pe.buffer());
+
+	return 0;
+}

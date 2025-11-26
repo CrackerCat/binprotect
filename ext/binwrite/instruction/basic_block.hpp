@@ -1,0 +1,73 @@
+#pragma once
+#include <vector>
+
+#include "../rva/rva.hpp"
+#include "instruction.hpp"
+
+namespace binwrite
+{
+	class binary_t;
+
+	class basic_block_t
+	{
+	public:
+		using size_type = std::int64_t;
+
+		explicit basic_block_t(std::shared_ptr<rva_t> rva)
+				:	rva_(std::move(rva)) { }
+
+		[[nodiscard]] std::shared_ptr<rva_t> rva() const
+		{
+			return rva_;
+		}
+
+		[[nodiscard]] rva_t end_rva() const;
+		[[nodiscard]] rva_t instruction_rva(size_type index) const;
+		[[nodiscard]] size_type instruction_index(rva_t target_rva) const;
+
+		void move_entire(binary_t& binary, rva_t destination) const;
+
+		void push(binary_t& binary, const instruction_t& instruction, bool pre_existing = false);
+		void push(binary_t& binary, std::span<const instruction_t> instructions, bool pre_existing = false);
+
+		void insert(binary_t& binary, const instruction_t& instruction, size_type index);
+		void insert(binary_t& binary, std::span<const instruction_t> instructions, size_type index);
+
+		void erase(binary_t& binary, size_type index, size_type count, bool affects_buffer = true);
+		void erase(binary_t& binary, size_type index, bool affects_buffer = true);
+
+		[[nodiscard]] instruction_t& at(const size_type index)
+		{
+			return instructions_.at(index);
+		}
+
+		[[nodiscard]] const instruction_t& at(const size_type index) const
+		{
+			return instructions_.at(index);
+		}
+
+		[[nodiscard]] std::span<instruction_t> instructions()
+		{
+			return { instructions_ };
+		}
+
+		[[nodiscard]] std::span<const instruction_t> instructions() const
+		{
+			return { instructions_ };
+		}
+
+		[[nodiscard]] size_type count() const
+		{
+			return static_cast<size_type>(instructions_.size());
+		}
+
+		[[nodiscard]] bool contains(const rva_t rva) const
+		{
+			return *rva_ <= rva && rva < end_rva();
+		}
+
+	protected:
+		std::shared_ptr<rva_t> rva_;
+		std::vector<instruction_t> instructions_;
+	};
+}
