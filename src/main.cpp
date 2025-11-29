@@ -7,6 +7,7 @@
 #include <string>
 #include <random>
 
+#include "linear_substitution/linear_substitution.hpp"
 #include "mba/mba.hpp"
 
 std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
@@ -66,6 +67,8 @@ std::int32_t main()
 
 	for (const auto& basic_block : pe.basic_blocks())
 	{
+		binprotect::linear_substitution::do_pass(pe, *basic_block);
+
 		constexpr std::uint32_t mba_passes = 4;
 
 		for (std::uint32_t i = 0; i < mba_passes; i++)

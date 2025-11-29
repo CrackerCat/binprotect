@@ -99,6 +99,23 @@ namespace binwrite
 
 		void update_rvas(rva_t disruption_rva, rva_t::size_type disruption_size, bool inclusive = false, bool update_sections = true);
 
+		std::optional<std::shared_ptr<rva_ref_t>> find_rva_ref(const rva_t ref_rva)
+		{
+			const auto found = std::ranges::find_if(rva_refs_,
+				[ref_rva](const std::shared_ptr<rva_ref_t>& ref)
+				{
+					return ref->self() == ref_rva;
+				}
+			);
+
+			if (found == rva_refs_.end())
+			{
+				return std::nullopt;
+			}
+
+			return *found;
+		}
+
 	protected:
 		virtual void find_data_rvas() = 0;
 		virtual void find_sections() = 0;

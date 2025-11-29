@@ -1,8 +1,7 @@
 #pragma once
 #include <Zydis/Zydis.h>
 
-#include <vector>
-#include <algorithm>
+#include <cstdint>
 
 namespace binwrite
 {

@@ -72,6 +72,9 @@
     <ClCompile Include="src\mba\mba.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\linear_substitution\linear_substitution.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp">
@@ -150,6 +153,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\mba\mba.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\linear_substitution\linear_substitution.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\math\random.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\assembler\assembler.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

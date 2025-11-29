@@ -48,6 +48,7 @@ namespace binwrite
 			bool has_displacement;
 			register_t base;
 			register_t index;
+			register_t segment;
 		};
 
 		struct reg_t
@@ -57,12 +58,15 @@ namespace binwrite
 
 		[[nodiscard]] bool is_imm() const;
 		[[nodiscard]] imm_t imm() const;
+		void set_imm(imm_t imm);
 
 		[[nodiscard]] bool is_mem() const;
 		[[nodiscard]] mem_t mem() const;
+		void set_mem(mem_t mem);
 
 		[[nodiscard]] bool is_reg() const;
 		[[nodiscard]] reg_t reg() const;
+		void set_reg(reg_t reg);
 
 		[[nodiscard]] size_type size() const;
 

@@ -18,6 +18,15 @@ binwrite::decoded_operand_t::imm_t binwrite::decoded_operand_t::imm() const
 	return imm;
 }
 
+void binwrite::decoded_operand_t::set_imm(const imm_t imm)
+{
+	value_.imm.value.u = imm.value.u;
+	value_.imm.is_relative = imm.is_relative;
+	value_.imm.is_signed = imm.is_signed;
+
+	value_.type = ZYDIS_OPERAND_TYPE_IMMEDIATE;
+}
+
 bool binwrite::decoded_operand_t::is_mem() const
 {
 	return value_.type == ZYDIS_OPERAND_TYPE_MEMORY;
@@ -33,8 +42,21 @@ binwrite::decoded_operand_t::mem_t binwrite::decoded_operand_t::mem() const
 
 	mem.base = register_t(value_.mem.base);
 	mem.index = register_t(value_.mem.index);
+	mem.segment = register_t(value_.mem.segment);
 
 	return mem;
+}
+
+void binwrite::decoded_operand_t::set_mem(const mem_t mem)
+{
+	value_.mem.segment = mem.segment;
+	value_.mem.base = mem.base;
+	value_.mem.index = mem.index;
+	value_.mem.scale = mem.scale;
+	value_.mem.disp.value = mem.displacement;
+	value_.mem.disp.has_displacement = mem.has_displacement;
+
+	value_.type = ZYDIS_OPERAND_TYPE_MEMORY;
 }
 
 bool binwrite::decoded_operand_t::is_reg() const
@@ -49,6 +71,13 @@ binwrite::decoded_operand_t::reg_t binwrite::decoded_operand_t::reg() const
 	reg.value = register_t(value_.reg.value);
 
 	return reg;
+}
+
+void binwrite::decoded_operand_t::set_reg(const reg_t reg)
+{
+	value_.reg.value = reg.value;
+
+	value_.type = ZYDIS_OPERAND_TYPE_REGISTER;
 }
 
 binwrite::decoded_operand_t::size_type binwrite::decoded_operand_t::size() const

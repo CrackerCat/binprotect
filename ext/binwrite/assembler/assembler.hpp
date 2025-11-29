@@ -16,7 +16,7 @@ namespace binwrite
 		explicit encoder_operand_t(const ZydisEncoderOperand& value)
 				:	value_(value) { }
 
-		explicit encoder_operand_t(const register_t& value)
+		encoder_operand_t(const register_t& value)
 		{
 			set_reg({ value });
 		}

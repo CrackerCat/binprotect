@@ -1,113 +1,8 @@
 #include "mba.hpp"
+#include "../assembler/assembler.hpp"
 
 #include <binwrite/disassembler/mnemonic.hpp>
 #include <functional>
-
-std::optional<binwrite::instruction_t> compile_assembler_instruction(const binwrite::mnemonic_t mnemonic, const std::span<const binwrite::encoder_operand_t> operands)
-{
-	const auto assembler_instruction = make_assembler_instruction(mnemonic, operands);
-
-	if (!assembler_instruction)
-	{
-		return std::nullopt;
-	}
-
-	return assembler_instruction->compile();
-}
-
-std::optional<binwrite::instruction_t> generic_src_dest_instruction(const binwrite::mnemonic_t mnemonic, const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	std::array operands = { destination, source };
-
-	return compile_assembler_instruction(mnemonic, operands);
-}
-
-std::optional<binwrite::instruction_t> generic_src_instruction(const binwrite::mnemonic_t mnemonic, const binwrite::encoder_operand_t& source)
-{
-	std::array operand = { source };
-
-	return compile_assembler_instruction(mnemonic, operand);
-}
-
-binwrite::instruction_t nop_instruction()
-{
-	constexpr std::array<std::uint8_t, 1> nop_byte = { 0x90 };
-
-	return binwrite::instruction_t{ nop_byte };
-}
-
-std::optional<binwrite::instruction_t> push_instruction(const binwrite::encoder_operand_t& source)
-{
-	return generic_src_instruction(binwrite::mnemonic_t::push, source);
-}
-
-std::optional<binwrite::instruction_t> pop_instruction(const binwrite::encoder_operand_t& source)
-{
-	return generic_src_instruction(binwrite::mnemonic_t::pop, source);
-}
-
-binwrite::encoder_operand_t encode_unsigned_imm_operand(const std::uint64_t imm)
-{
-	binwrite::encoder_operand_t operand = { };
-
-	operand.set_imm({ .u = imm });
-
-	return operand;
-}
-
-std::optional<binwrite::instruction_t> shl_instruction(const binwrite::encoder_operand_t& destination, const std::uint8_t shift_by)
-{
-	const binwrite::encoder_operand_t source = encode_unsigned_imm_operand(shift_by);
-
-	return generic_src_dest_instruction(binwrite::mnemonic_t::shl, source, destination);
-}
-
-std::optional<binwrite::instruction_t> shr_instruction(const binwrite::encoder_operand_t& destination, const std::uint8_t shift_by)
-{
-	const binwrite::encoder_operand_t source = encode_unsigned_imm_operand(shift_by);
-
-	return generic_src_dest_instruction(binwrite::mnemonic_t::shr, source, destination);
-}
-
-std::optional<binwrite::instruction_t> mov_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_dest_instruction(binwrite::mnemonic_t::mov, source, destination);
-}
-
-std::optional<binwrite::instruction_t> add_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_dest_instruction(binwrite::mnemonic_t::add, source, destination);
-}
-
-std::optional<binwrite::instruction_t> neg_instruction(const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_instruction(binwrite::mnemonic_t::neg, destination);
-}
-
-std::optional<binwrite::instruction_t> not_instruction(const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_instruction(binwrite::mnemonic_t::not_, destination);
-}
-
-std::optional<binwrite::instruction_t> sub_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_dest_instruction(binwrite::mnemonic_t::sub, source, destination);
-}
-
-std::optional<binwrite::instruction_t> and_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_dest_instruction(binwrite::mnemonic_t::and_, source, destination);
-}
-
-std::optional<binwrite::instruction_t> or_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_dest_instruction(binwrite::mnemonic_t::or_, source, destination);
-}
-
-std::optional<binwrite::instruction_t> xor_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
-{
-	return generic_src_dest_instruction(binwrite::mnemonic_t::xor_, source, destination);
-}
 
 std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instruction_t& instruction, std::function<void(std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register)> callback)
 {
@@ -128,7 +23,7 @@ std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instr
 	const binwrite::encoder_operand_t unused_register(unused_register_family.of_size(decoded_x.size()));
 	const binwrite::encoder_operand_t unused_register_qword(unused_register_family.qword);
 
-	if (x.is_mem() || y.is_mem() || x.reg().value == binwrite::register_t::rsp || y.reg().value == binwrite::register_t::rsp)
+	if (x.is_mem() || y.is_mem() || (x.is_reg() && x.reg().value == binwrite::register_t::rsp) || (y.is_reg() && y.reg().value == binwrite::register_t::rsp))
 	{
 		return { };
 	}

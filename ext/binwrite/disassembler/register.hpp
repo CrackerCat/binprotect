@@ -4,7 +4,6 @@
 #include <algorithm>
 #include <vector>
 #include <array>
-#include <unordered_map>
 
 namespace binwrite
 {
