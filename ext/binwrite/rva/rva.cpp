@@ -82,14 +82,7 @@ std::expected<void, binwrite::rva_ref_t::error_t> binwrite::code_rva_ref_t::upda
 
 bool binwrite::code_rva_ref_t::update_rva_in_assembler_instruction(assembler_instruction_t& instruction) const
 {
-	const auto predicted_size = instruction.predict_size();
-
-	if (!predicted_size)
-	{
-		return false;
-	}
-
-	const rva_t::value_type rip = self_.value() + *predicted_size;
+	const rva_t::value_type rip = self_.value() + size_;
 	const auto difference = static_cast<std::int64_t>(target_->value()) - static_cast<std::int64_t>(rip);
 
 	for (auto& operand : instruction.operands())

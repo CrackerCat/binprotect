@@ -1,6 +1,9 @@
 #include "mnemonic.hpp"
 
 const binwrite::mnemonic_t binwrite::mnemonic_t::invalid = mnemonic_t(ZYDIS_MNEMONIC_INVALID);
+const binwrite::mnemonic_t binwrite::mnemonic_t::call = mnemonic_t(ZYDIS_MNEMONIC_CALL);
+const binwrite::mnemonic_t binwrite::mnemonic_t::pushfq = mnemonic_t(ZYDIS_MNEMONIC_PUSHFQ);
+const binwrite::mnemonic_t binwrite::mnemonic_t::popfq = mnemonic_t(ZYDIS_MNEMONIC_POPFQ);
 const binwrite::mnemonic_t binwrite::mnemonic_t::push = mnemonic_t(ZYDIS_MNEMONIC_PUSH);
 const binwrite::mnemonic_t binwrite::mnemonic_t::pop = mnemonic_t(ZYDIS_MNEMONIC_POP);
 const binwrite::mnemonic_t binwrite::mnemonic_t::shl = mnemonic_t(ZYDIS_MNEMONIC_SHL);
@@ -10,6 +13,8 @@ const binwrite::mnemonic_t binwrite::mnemonic_t::mul = mnemonic_t(ZYDIS_MNEMONIC
 const binwrite::mnemonic_t binwrite::mnemonic_t::add = mnemonic_t(ZYDIS_MNEMONIC_ADD);
 const binwrite::mnemonic_t binwrite::mnemonic_t::neg = mnemonic_t(ZYDIS_MNEMONIC_NEG);
 const binwrite::mnemonic_t binwrite::mnemonic_t::mov = mnemonic_t(ZYDIS_MNEMONIC_MOV);
+const binwrite::mnemonic_t binwrite::mnemonic_t::lea = mnemonic_t(ZYDIS_MNEMONIC_LEA);
+const binwrite::mnemonic_t binwrite::mnemonic_t::test = mnemonic_t(ZYDIS_MNEMONIC_TEST);
 const binwrite::mnemonic_t binwrite::mnemonic_t::sub = mnemonic_t(ZYDIS_MNEMONIC_SUB);
 const binwrite::mnemonic_t binwrite::mnemonic_t::and_ = mnemonic_t(ZYDIS_MNEMONIC_AND);
 const binwrite::mnemonic_t binwrite::mnemonic_t::or_ = mnemonic_t(ZYDIS_MNEMONIC_OR);

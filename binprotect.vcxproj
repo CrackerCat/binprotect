@@ -165,6 +165,7 @@
     <ClCompile Include="ext\portable-executable\nt_headers.cpp" />
     <ClCompile Include="ext\portable-executable\relocations_directory.cpp" />
     <ClCompile Include="ext\portable-executable\section_header.cpp" />
+    <ClCompile Include="src\control_flow\control_flow_obfuscation.cpp" />
     <ClCompile Include="src\linear_substitution\linear_substitution.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\mba\mba.cpp" />
@@ -178,6 +179,7 @@
     <ClInclude Include="ext\binwrite\disassembler\register.hpp" />
     <ClInclude Include="ext\binwrite\instruction\basic_block.hpp" />
     <ClInclude Include="ext\binwrite\instruction\instruction.hpp" />
+    <ClInclude Include="ext\binwrite\math\random.hpp" />
     <ClInclude Include="ext\binwrite\rva\rva.hpp" />
     <ClInclude Include="ext\portable-executable\data_directory.hpp" />
     <ClInclude Include="ext\portable-executable\debug_directory.hpp" />
@@ -196,8 +198,8 @@
     <ClInclude Include="ext\portable-executable\resource_directory.hpp" />
     <ClInclude Include="ext\portable-executable\section_header.hpp" />
     <ClInclude Include="src\assembler\assembler.hpp" />
+    <ClInclude Include="src\control_flow\control_flow_obfuscation.hpp" />
     <ClInclude Include="src\linear_substitution\linear_substitution.hpp" />
-    <ClInclude Include="src\math\random.hpp" />
     <ClInclude Include="src\mba\mba.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

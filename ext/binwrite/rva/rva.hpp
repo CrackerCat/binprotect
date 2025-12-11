@@ -19,7 +19,7 @@ namespace binwrite
 		rva_t() = default;
 
 		explicit rva_t(const value_type value)
-				:	value_(value) {}
+				:	value_(value) { }
 
 		explicit rva_t(const value_type value, const bool force_inclusive)
 				:	value_(value),

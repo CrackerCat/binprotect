@@ -118,6 +118,34 @@ bool binwrite::disassembled_instruction_t::rip_relative() const
 	return false;
 }
 
+bool binwrite::disassembled_instruction_t::rsp_relative() const
+{
+	for (const auto& operand : operands_)
+	{
+		if (operand.is_reg())
+		{
+			const auto reg = operand.reg();
+
+			if (reg.value == register_t::rsp)
+			{
+				return true;
+			}
+		}
+
+		if (operand.is_mem())
+		{
+			const auto mem = operand.mem();
+
+			if (mem.base == register_t::rsp)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 binwrite::disassembled_instruction_t::size_type binwrite::disassembled_instruction_t::size() const
 {
 	return decoded_instruction_.length;
@@ -227,6 +255,20 @@ bool binwrite::disassembled_instruction_t::is_add() const
 bool binwrite::disassembled_instruction_t::is_and() const
 {
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_AND;
+}
+
+std::string binwrite::disassembled_instruction_t::to_string() const
+{
+	ZydisFormatter formatter;
+	ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL_MASM);
+
+	std::array<char, 256> buffer = { };
+
+	const auto zydis_operands = reinterpret_cast<const ZydisDecodedOperand*>(operands_.data());
+
+	ZydisFormatterFormatInstruction(&formatter, &decoded_instruction_, zydis_operands, decoded_instruction_.operand_count_visible, buffer.data(), sizeof(buffer), 0, nullptr);
+
+	return { buffer.data() };
 }
 
 binwrite::disassembled_instruction_t::operator ZydisDecodedInstruction_&()

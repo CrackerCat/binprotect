@@ -22,13 +22,16 @@ namespace binwrite
 		}
 
 		explicit instruction_t(const const_value_type bytes)
-				:	bytes_({}),
-					size_(static_cast<size_type>(bytes.size())),
-					disassembly_(disassembled_instruction_t())
+			: bytes_({}),
+			size_(static_cast<size_type>(bytes.size())),
+			disassembly_(disassembled_instruction_t())
 		{
 			disassembler_t diassembler;
 
-			disassembly_ = *diassembler.disassemble(bytes.data());
+			std::array<std::uint8_t, 15> correctly_sized_bytes = { };
+			std::memcpy(correctly_sized_bytes.data(), bytes.data(), bytes.size());
+
+			disassembly_ = *diassembler.disassemble(correctly_sized_bytes.data());
 
 			std::memcpy(bytes_.data(), bytes.data(), bytes.size());
 		}

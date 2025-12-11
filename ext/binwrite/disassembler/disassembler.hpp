@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <string>
 
 #include "register.hpp"
 
@@ -91,6 +92,7 @@ namespace binwrite
 
 		[[nodiscard]] bool relative() const;
 		[[nodiscard]] bool rip_relative() const;
+		[[nodiscard]] bool rsp_relative() const;
 
 		[[nodiscard]] size_type size() const;
 
@@ -112,6 +114,8 @@ namespace binwrite
 		[[nodiscard]] bool is_lea() const;
 		[[nodiscard]] bool is_add() const;
 		[[nodiscard]] bool is_and() const;
+
+		[[nodiscard]] std::string to_string() const;
 
 		[[nodiscard]] explicit operator ZydisDecodedInstruction&();
 		[[nodiscard]] explicit operator const ZydisDecodedInstruction&() const;

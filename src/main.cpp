@@ -7,6 +7,7 @@
 #include <string>
 #include <random>
 
+#include "control_flow/control_flow_obfuscation.hpp"
 #include "linear_substitution/linear_substitution.hpp"
 #include "mba/mba.hpp"
 
@@ -47,6 +48,28 @@ void erase_unused_data_directories(binwrite::portable_executable_t& pe)
 	}
 }
 
+void fix_security_directory(binwrite::portable_executable_t& pe)
+{
+	const auto image = pe.image();
+	const auto nt_headers = image->nt_headers();
+
+	auto& security_directory = nt_headers->optional_header.data_directories.security_directory;
+
+	if (!security_directory.present())
+	{
+		return;
+	}
+
+	if (const auto resolved_rva = image->ptr_to_rva(security_directory.virtual_address))
+	{
+		security_directory.virtual_address = *resolved_rva;
+	}
+	else
+	{
+		spdlog::warn("unable to redirect raw ptr of security directory");
+	}
+}
+
 std::int32_t main()
 {
 	std::vector<std::uint8_t> buffer = read_file_from_disk("input.exe");
@@ -61,6 +84,7 @@ std::int32_t main()
 	binwrite::portable_executable_t pe(std::move(buffer));
 
 	erase_unused_data_directories(pe);
+	//fix_security_directory(pe);
 
 	pe.decompress();
 	pe.parse();
@@ -75,6 +99,8 @@ std::int32_t main()
 		{
 			binprotect::mba::do_pass(pe, *basic_block);
 		}
+
+		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
 	}
 
 	pe.update_rva_references();

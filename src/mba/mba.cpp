@@ -3,12 +3,13 @@
 
 #include <binwrite/disassembler/mnemonic.hpp>
 #include <functional>
+#include <spdlog/spdlog.h>
 
 std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instruction_t& instruction, std::function<void(std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register)> callback)
 {
 	const auto& visible_operands = instruction.visible_operands();
 
-	if (visible_operands.size() < 2)
+	if (visible_operands.size() < 2 || instruction.rsp_relative())
 	{
 		return { };
 	}
@@ -22,11 +23,6 @@ std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instr
 
 	const binwrite::encoder_operand_t unused_register(unused_register_family.of_size(decoded_x.size()));
 	const binwrite::encoder_operand_t unused_register_qword(unused_register_family.qword);
-
-	if (x.is_mem() || y.is_mem() || (x.is_reg() && x.reg().value == binwrite::register_t::rsp) || (y.is_reg() && y.reg().value == binwrite::register_t::rsp))
-	{
-		return { };
-	}
 
 	std::vector<binwrite::instruction_t> instructions = { };
 
@@ -60,27 +56,34 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 		std::vector<binwrite::instruction_t> obfuscated_instructions = { };
 
-		const binwrite::mnemonic_t mnemonic = disassembled_instruction.mnemonic();
+		try
+		{
+			const binwrite::mnemonic_t mnemonic = disassembled_instruction.mnemonic();
 
-		if (mnemonic == binwrite::mnemonic_t::add)
-		{
-			obfuscated_instructions = mba_obfuscate_add(disassembled_instruction);
+			if (mnemonic == binwrite::mnemonic_t::add)
+			{
+				obfuscated_instructions = mba_obfuscate_add(disassembled_instruction);
+			}
+			else if (mnemonic == binwrite::mnemonic_t::sub)
+			{
+				obfuscated_instructions = mba_obfuscate_sub(disassembled_instruction);
+			}
+			else if (mnemonic == binwrite::mnemonic_t::and_)
+			{
+				obfuscated_instructions = mba_obfuscate_and(disassembled_instruction);
+			}
+			else if (mnemonic == binwrite::mnemonic_t::or_)
+			{
+				obfuscated_instructions = mba_obfuscate_or(disassembled_instruction);
+			}
+			else if (mnemonic == binwrite::mnemonic_t::xor_)
+			{
+				obfuscated_instructions = mba_obfuscate_xor(disassembled_instruction);
+			}
 		}
-		else if (mnemonic == binwrite::mnemonic_t::sub)
+		catch (const std::exception&)
 		{
-			obfuscated_instructions = mba_obfuscate_sub(disassembled_instruction);
-		}
-		else if (mnemonic == binwrite::mnemonic_t::and_)
-		{
-			obfuscated_instructions = mba_obfuscate_and(disassembled_instruction);
-		}
-		else if (mnemonic == binwrite::mnemonic_t::or_)
-		{
-			obfuscated_instructions = mba_obfuscate_or(disassembled_instruction);
-		}
-		else if (mnemonic == binwrite::mnemonic_t::xor_)
-		{
-			obfuscated_instructions = mba_obfuscate_xor(disassembled_instruction);
+			spdlog::error("unable to do mixed boolean arithmetic pass on {}", disassembled_instruction.to_string());
 		}
 
 		if (obfuscated_instructions.empty())
@@ -88,8 +91,10 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 			continue;
 		}
 
-		basic_block.erase(binary, i + added);
-		basic_block.insert(binary, obfuscated_instructions, i + added);
+		const std::uint32_t basic_block_index = i + added;
+
+		basic_block.erase(binary, basic_block_index);
+		basic_block.insert(binary, obfuscated_instructions, basic_block_index);
 
 		added += static_cast<std::uint32_t>(obfuscated_instructions.size()) - 1;
 	}

@@ -35,6 +35,9 @@ namespace binwrite
 		}
 
 		static const mnemonic_t invalid;
+		static const mnemonic_t call;
+		static const mnemonic_t pushfq;
+		static const mnemonic_t popfq;
 		static const mnemonic_t push;
 		static const mnemonic_t pop;
 		static const mnemonic_t shl;
@@ -44,6 +47,8 @@ namespace binwrite
 		static const mnemonic_t add;
 		static const mnemonic_t neg;
 		static const mnemonic_t mov;
+		static const mnemonic_t lea;
+		static const mnemonic_t test;
 		static const mnemonic_t sub;
 		static const mnemonic_t and_;
 		static const mnemonic_t or_;

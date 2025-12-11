@@ -11,6 +11,7 @@
 *.sln.docstates
 
 *.exe
+*.i64
 
 # vcpkg
 vcpkg_installed/

@@ -28,6 +28,21 @@ inline std::optional<binwrite::instruction_t> generic_src_instruction(const binw
 	return compile_assembler_instruction(mnemonic, operand);
 }
 
+inline std::optional<binwrite::instruction_t> generic_no_operand_instruction(const binwrite::mnemonic_t mnemonic)
+{
+	return compile_assembler_instruction(mnemonic, { });
+}
+
+inline std::optional<binwrite::instruction_t> pushfq_instruction()
+{
+	return generic_no_operand_instruction(binwrite::mnemonic_t::pushfq);
+}
+
+inline std::optional<binwrite::instruction_t> popfq_instruction()
+{
+	return generic_no_operand_instruction(binwrite::mnemonic_t::popfq);
+}
+
 inline std::optional<binwrite::instruction_t> push_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::push, source);
@@ -73,6 +88,16 @@ inline std::optional<binwrite::instruction_t> shr_instruction(const binwrite::en
 inline std::optional<binwrite::instruction_t> mov_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
 {
 	return generic_src_dest_instruction(binwrite::mnemonic_t::mov, source, destination);
+}
+
+inline std::optional<binwrite::instruction_t> lea_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_dest_instruction(binwrite::mnemonic_t::lea, source, destination);
+}
+
+inline std::optional<binwrite::instruction_t> test_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_dest_instruction(binwrite::mnemonic_t::test, source, destination);
 }
 
 inline std::optional<binwrite::instruction_t> add_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
