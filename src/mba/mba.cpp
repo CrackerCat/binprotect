@@ -26,12 +26,12 @@ std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instr
 
 	std::vector<binwrite::instruction_t> instructions = { };
 
-	instructions.push_back(*push_instruction(unused_register_qword));
-	instructions.push_back(*mov_instruction(x, unused_register));
+	instructions.push_back(push_instruction(unused_register_qword).value());
+	instructions.push_back(mov_instruction(x, unused_register).value());
 
 	callback(instructions, x, y, unused_register);
 
-	instructions.push_back(*pop_instruction(unused_register_qword));
+	instructions.push_back(pop_instruction(unused_register_qword).value());
 
 	return instructions;
 }
@@ -83,7 +83,7 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 		}
 		catch (const std::exception&)
 		{
-			spdlog::error("unable to do mixed boolean arithmetic pass on {}", disassembled_instruction.to_string());
+			spdlog::error("unable to do mixed boolean arithmetic pass on '{}'", disassembled_instruction.to_string());
 		}
 
 		if (obfuscated_instructions.empty())
@@ -93,8 +93,8 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 		const std::uint32_t basic_block_index = i + added;
 
-		basic_block.erase(binary, basic_block_index);
 		basic_block.insert(binary, obfuscated_instructions, basic_block_index);
+		basic_block.erase(binary, basic_block_index + static_cast<std::uint32_t>(obfuscated_instructions.size()));
 
 		added += static_cast<std::uint32_t>(obfuscated_instructions.size()) - 1;
 	}
@@ -108,13 +108,13 @@ std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassemb
 			// (x + y) can be obfuscated to ((x & y) + (x | y))
 
 			// unused register = (x & y)
-			instructions.push_back(*and_instruction(y, unused_register));
+			instructions.push_back(and_instruction(y, unused_register).value());
 
 			// x = (x | y)
-			instructions.push_back(*or_instruction(y, x));
+			instructions.push_back(or_instruction(y, x).value());
 
 			// x = x + unused register
-			instructions.push_back(*add_instruction(unused_register, x));
+			instructions.push_back(add_instruction(unused_register, x).value());
 		};
 
 	return mba_stub(instruction, callback);
@@ -125,9 +125,9 @@ std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassemb
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register) -> void
 		{
-			instructions.push_back(*add_instruction(y, x));
-			instructions.push_back(*or_instruction(y, unused_register));
-			instructions.push_back(*sub_instruction(unused_register, x));
+			instructions.push_back(add_instruction(y, x).value());
+			instructions.push_back(or_instruction(y, unused_register).value());
+			instructions.push_back(sub_instruction(unused_register, x).value());
 		};
 
 	return mba_stub(instruction, callback);
@@ -138,9 +138,9 @@ std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassemb
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register) -> void
 		{
-			instructions.push_back(*and_instruction(y, unused_register));
-			instructions.push_back(*or_instruction(y, x));
-			instructions.push_back(*sub_instruction(unused_register, x));
+			instructions.push_back(and_instruction(y, unused_register).value());
+			instructions.push_back(or_instruction(y, x).value());
+			instructions.push_back(sub_instruction(unused_register, x).value());
 		};
 
 	return mba_stub(instruction, callback);
@@ -155,21 +155,21 @@ std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassemb
 			{
 				const binwrite::encoder_operand_t neg_y = encode_unsigned_imm_operand(-y.imm().s);
 
-				instructions.push_back(*xor_instruction(neg_y, unused_register));
-				instructions.push_back(*and_instruction(neg_y, x));
+				instructions.push_back(xor_instruction(neg_y, unused_register).value());
+				instructions.push_back(and_instruction(neg_y, x).value());
 			}
 			else
 			{
-				instructions.push_back(*neg_instruction(y));
+				instructions.push_back(neg_instruction(y).value());
 
-				instructions.push_back(*xor_instruction(y, unused_register));
-				instructions.push_back(*and_instruction(y, x));
+				instructions.push_back(xor_instruction(y, unused_register).value());
+				instructions.push_back(and_instruction(y, x).value());
 
-				instructions.push_back(*neg_instruction(y));
+				instructions.push_back(neg_instruction(y).value());
 			}
 
-			instructions.push_back(*shl_instruction(x, 1));
-			instructions.push_back(*add_instruction(unused_register, x));
+			instructions.push_back(shl_instruction(x, 1).value());
+			instructions.push_back(add_instruction(unused_register, x).value());
 		};
 
 	return mba_stub(instruction, callback);
@@ -182,29 +182,29 @@ std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembl
 		{
 			const binwrite::encoder_operand_t constant = encode_unsigned_imm_operand(1);
 
-			instructions.push_back(*add_instruction(y, unused_register));
-			instructions.push_back(*add_instruction(constant, unused_register));
+			instructions.push_back(add_instruction(y, unused_register).value());
+			instructions.push_back(add_instruction(constant, unused_register).value());
 
 			if (y.is_imm())
 			{
 				const binwrite::encoder_operand_t not_y = encode_unsigned_imm_operand(~y.imm().u);
 
-				instructions.push_back(*not_instruction(x));
+				instructions.push_back(not_instruction(x).value());
 
-				instructions.push_back(*or_instruction(not_y, x));
+				instructions.push_back(or_instruction(not_y, x).value());
 
-				instructions.push_back(*add_instruction(unused_register, x));
+				instructions.push_back(add_instruction(unused_register, x).value());
 			}
 			else
 			{
-				instructions.push_back(*not_instruction(y));
-				instructions.push_back(*not_instruction(x));
+				instructions.push_back(not_instruction(y).value());
+				instructions.push_back(not_instruction(x).value());
 
-				instructions.push_back(*or_instruction(y, x));
+				instructions.push_back(or_instruction(y, x).value());
 
-				instructions.push_back(*not_instruction(y));
+				instructions.push_back(not_instruction(y).value());
 
-				instructions.push_back(*add_instruction(unused_register, x));
+				instructions.push_back(add_instruction(unused_register, x).value());
 			}
 		};
 

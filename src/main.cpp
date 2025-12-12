@@ -100,6 +100,8 @@ std::int32_t main()
 			binprotect::mba::do_pass(pe, *basic_block);
 		}
 
+		binprotect::linear_substitution::do_pass(pe, *basic_block);
+
 		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
 	}
 

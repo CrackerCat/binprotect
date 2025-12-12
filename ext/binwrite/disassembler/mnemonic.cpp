@@ -20,3 +20,4 @@ const binwrite::mnemonic_t binwrite::mnemonic_t::and_ = mnemonic_t(ZYDIS_MNEMONI
 const binwrite::mnemonic_t binwrite::mnemonic_t::or_ = mnemonic_t(ZYDIS_MNEMONIC_OR);
 const binwrite::mnemonic_t binwrite::mnemonic_t::xor_ = mnemonic_t(ZYDIS_MNEMONIC_XOR);
 const binwrite::mnemonic_t binwrite::mnemonic_t::not_ = mnemonic_t(ZYDIS_MNEMONIC_NOT);
+const binwrite::mnemonic_t binwrite::mnemonic_t::nop = mnemonic_t(ZYDIS_MNEMONIC_NOP);

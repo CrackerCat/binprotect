@@ -73,7 +73,7 @@ std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::u
 
 std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction)
 {
-	if (instruction.rip_relative() || instruction.rsp_relative())
+	if (instruction.rip_relative())
 	{
 		return { };
 	}
@@ -224,7 +224,7 @@ void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwri
 		}
 		catch (const std::exception&)
 		{
-			spdlog::error("unable to linearly substitute {}", disassembled_instruction.to_string());
+			spdlog::error("unable to linearly substitute '{}'", disassembled_instruction.to_string());
 
 			continue;
 		}
@@ -234,8 +234,8 @@ void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwri
 			continue;
 		}
 
-		basic_block.erase(binary, basic_block_index);
 		basic_block.insert(binary, obfuscated_instructions, basic_block_index);
+		basic_block.erase(binary, basic_block_index + static_cast<std::uint32_t>(obfuscated_instructions.size()));
 
 		added += static_cast<std::uint32_t>(obfuscated_instructions.size()) - 1;
 	}

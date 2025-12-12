@@ -54,6 +54,7 @@ namespace binwrite
 		static const mnemonic_t or_;
 		static const mnemonic_t xor_;
 		static const mnemonic_t not_;
+		static const mnemonic_t nop;
 
 	protected:
 		value_type value_ = 0;

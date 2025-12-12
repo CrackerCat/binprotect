@@ -43,6 +43,11 @@ inline std::optional<binwrite::instruction_t> popfq_instruction()
 	return generic_no_operand_instruction(binwrite::mnemonic_t::popfq);
 }
 
+inline std::optional<binwrite::instruction_t> nop_instruction()
+{
+	return generic_no_operand_instruction(binwrite::mnemonic_t::nop);
+}
+
 inline std::optional<binwrite::instruction_t> push_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::push, source);
