@@ -189,11 +189,20 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 {
 	const auto& instructions = basic_block.instructions();
 
-	for (std::uint64_t i = 0; i < instructions.size(); i++)
+	std::optional<disassembled_instruction_t> latest_lea = std::nullopt;
+	rva_t latest_lea_rva = { };
+
+	for (std::uint32_t i = 0; i < instructions.size(); i++)
 	{
 		const auto& root_instruction = instructions[i].disassemble();
 
-		if (!root_instruction.is_mov())
+		if (root_instruction.is_lea() && root_instruction.rip_relative())
+		{
+			latest_lea_rva = basic_block.instruction_rva(i);
+			latest_lea = root_instruction;
+		}
+
+		if (!latest_lea && !root_instruction.is_mov())
 		{
 			continue;
 		}
@@ -205,52 +214,42 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 				continue;
 			}
 
-			constexpr std::uint64_t jump_table_scale = 4;
-
 			const auto mem = root_operand.mem();
 
-			if (mem.scale != jump_table_scale || mem.index == register_t::none || mem.base == register_t::none)
+			if (mem.scale != 4 || mem.index == register_t::none || mem.base == register_t::none)
 			{
 				continue;
 			}
 
 			const bool is_msvc = mem.has_displacement;
 
-			for (std::uint64_t j = 1; j <= i; j--)
+			const auto lea_operands = latest_lea->visible_operands();
+
+			if (lea_operands.empty())
 			{
-				const auto& prev_instruction = instructions[i - j].disassemble();
+				continue;
+			}
 
-				if (!prev_instruction.is_lea() || !prev_instruction.rip_relative())
-				{
-					continue;
-				}
+			const auto result_operand = lea_operands[0];
 
-				const auto prev_operands = prev_instruction.visible_operands();
+			if (!result_operand.is_reg() || result_operand.reg().value != mem.base)
+			{
+				continue;
+			}
 
-				if (prev_operands.empty())
-				{
-					continue;
-				}
+			if (is_msvc)
+			{
+				const auto table_base = add_rva(static_cast<rva_t::value_type>(mem.displacement));
 
-				const auto result_operand = prev_operands[0];
+				add_msvc_jmp_table_ref(*table_base);
 
-				if (!result_operand.is_reg() || result_operand.reg().value != mem.base)
-				{
-					continue;
-				}
+				const rva_t root_instruction_rva = basic_block.instruction_rva(i);
 
-				if (is_msvc)
-				{
-					const auto table_base = add_rva(static_cast<rva_t::value_type>(mem.displacement));
-
-					add_msvc_jmp_table_ref(*table_base);
-
-					rva_refs_.push_back(std::make_shared<msvc_jmp_table_ref_t>(table_base, basic_block.instruction_rva(i), root_instruction.size()));
-				}
-				else if (const auto table_base = resolve_instruction_rva(prev_instruction, basic_block.instruction_rva(i - j)))
-				{
-					add_llvm_jmp_table_ref(rva_t{ *table_base });
-				}
+				rva_refs_.push_back(std::make_shared<msvc_jmp_table_ref_t>(table_base, root_instruction_rva, root_instruction.size()));
+			}
+			else if (const auto table_base = resolve_instruction_rva(*latest_lea, latest_lea_rva))
+			{
+				add_llvm_jmp_table_ref(rva_t{ *table_base });
 			}
 		}
 	}
@@ -389,8 +388,6 @@ bool binwrite::binary_t::split_basic_block(const std::shared_ptr<basic_block_t>&
 	}
 
 	basic_blocks_.push_back(new_basic_block);
-
-	spdlog::warn("{} instructions split at rva 0x{:X}", new_block_instructions.size(), basic_block->rva()->value());
 
 	return true;
 }
