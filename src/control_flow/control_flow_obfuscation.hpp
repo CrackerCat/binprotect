@@ -1,5 +1,4 @@
 #pragma once
-
 #include <binwrite/binary/binary.hpp>
 
 namespace binprotect::control_flow::obfuscation

@@ -227,6 +227,11 @@ bool binwrite::disassembled_instruction_t::is_conditional_jump() const
 	return is_jump() && decoded_instruction_.mnemonic != ZYDIS_MNEMONIC_JMP;
 }
 
+bool binwrite::disassembled_instruction_t::is_unconditional_jump() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_JMP;
+}
+
 bool binwrite::disassembled_instruction_t::is_call() const
 {
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_CALL;

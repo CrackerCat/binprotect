@@ -108,6 +108,7 @@ namespace binwrite
 
 		[[nodiscard]] bool is_jump() const;
 		[[nodiscard]] bool is_conditional_jump() const;
+		[[nodiscard]] bool is_unconditional_jump() const;
 		[[nodiscard]] bool is_call() const;
 		[[nodiscard]] bool is_ret() const;
 		[[nodiscard]] bool is_mov() const;

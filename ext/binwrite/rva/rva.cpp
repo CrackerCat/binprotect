@@ -56,6 +56,11 @@ std::shared_ptr<binwrite::rva_t> binwrite::rva_ref_t::target() const
 	return target_;
 }
 
+void binwrite::rva_ref_t::set_target(std::shared_ptr<rva_t> target)
+{
+	target_ = std::move(target);
+}
+
 void binwrite::rva_ref_t::process_disruption(const rva_t disruption_rva, const rva_t::size_type disruption_size)
 {
 	self_.process_disruption(disruption_rva, disruption_size, true);

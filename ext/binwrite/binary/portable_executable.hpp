@@ -29,7 +29,7 @@ namespace binwrite
 		explicit portable_executable_t(std::vector<std::uint8_t> buffer)
 				:	binary_t(std::move(buffer)) {}
 
-		[[nodiscard]] std::uint64_t image_base() const;
+		[[nodiscard]] std::uint64_t image_base() const override;
 		[[nodiscard]] rva_t entry_point() const override;
 
 		void decompress() override;
@@ -64,7 +64,7 @@ namespace binwrite
 
 			const auto ref = std::make_shared<data_rva_ref_t>(data_rva, rva_t{ data_reference }, static_cast<data_rva_ref_t::size_type>(sizeof(T)));
 
-			rva_refs_.push_back(ref);
+			add_rva_ref(ref);
 
 			return ref;
 		}

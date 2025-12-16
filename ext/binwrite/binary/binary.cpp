@@ -73,8 +73,6 @@ void binwrite::binary_t::parse()
 {
 	find_sections();
 	find_data_rvas();
-
-	disassemble();
 }
 
 void binwrite::binary_t::insert(const rva_t rva, const std::span<const std::uint8_t> data, const bool inclusive)
@@ -100,6 +98,27 @@ void binwrite::binary_t::erase(const rva_t rva, const rva_t::size_type size, con
 	update_rvas(rva, -size, inclusive);
 }
 
+std::span<std::shared_ptr<binwrite::function_t>> binwrite::binary_t::functions()
+{
+	return functions_;
+}
+
+std::span<const std::shared_ptr<binwrite::function_t>> binwrite::binary_t::functions() const
+{
+	return functions_;
+}
+
+void binwrite::binary_t::create_function(const std::string& name, const rva_t rva)
+{
+	const auto added_rva = add_rva(rva);
+
+	const auto function = std::make_shared<function_t>(name, added_rva);
+
+	functions_.push_back(function);
+
+	add_to_disassembly_queue(added_rva);
+}
+
 std::span<std::shared_ptr<binwrite::basic_block_t>> binwrite::binary_t::basic_blocks()
 {
 	return basic_blocks_;
@@ -108,6 +127,65 @@ std::span<std::shared_ptr<binwrite::basic_block_t>> binwrite::binary_t::basic_bl
 std::span<const std::shared_ptr<binwrite::basic_block_t>> binwrite::binary_t::basic_blocks() const
 {
 	return basic_blocks_;
+}
+
+std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::find_basic_block(const rva_t rva) const
+{
+	for (const auto& basic_block : basic_blocks_)
+	{
+		if (*basic_block->rva() == rva)
+		{
+			return basic_block;
+		}
+	}
+
+	return { };
+}
+
+std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::is_inside_basic_block(const rva_t rva) const
+{
+	for (const auto& basic_block : basic_blocks_)
+	{
+		if (basic_block->contains(rva))
+		{
+			return basic_block;
+		}
+	}
+
+	return { };
+}
+
+std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::split_basic_block(const std::shared_ptr<basic_block_t>& basic_block, const basic_block_t::size_type index)
+{
+	if (index == 0)
+	{
+		return { };
+	}
+
+	const auto split_rva = basic_block->instruction_rva(index);
+
+	const basic_block_t::size_type split_count = basic_block->count() - index;
+
+	const auto original_block_instructions = basic_block->instructions();
+
+	const auto start = original_block_instructions.begin() + index;
+	const auto end = start + split_count;
+
+	const std::vector new_block_instructions(start, end);
+	const auto offset_rva = add_rva(split_rva);
+
+	basic_block->erase(*this, index, split_count, false);
+
+	auto new_basic_block = std::make_shared<basic_block_t>(offset_rva);
+
+	for (const auto& instruction : new_block_instructions)
+	{
+		new_basic_block->push(*this, instruction, true);
+	}
+
+	basic_blocks_.push_back(new_basic_block);
+
+	return new_basic_block;
 }
 
 std::vector<std::shared_ptr<binwrite::rva_t>> binwrite::binary_t::rvas()
@@ -128,6 +206,34 @@ std::unordered_map<std::string, binwrite::section_t>& binwrite::binary_t::sectio
 const std::unordered_map<std::string, binwrite::section_t>& binwrite::binary_t::sections() const
 {
 	return sections_;
+}
+
+std::vector<binwrite::section_t> binwrite::binary_t::ordered_sections() const
+{
+	const auto sections_view = sections_ | std::views::values;
+
+	std::vector ordered_sections(sections_view.begin(), sections_view.end());
+
+	std::ranges::sort(ordered_sections,
+		[](const section_t& left, const section_t& right)
+		{
+			return left.rva() < right.rva();
+		}
+	);
+
+	return ordered_sections;
+}
+
+std::optional<binwrite::section_t> binwrite::binary_t::find_section(const std::string& name) const
+{
+	const auto it = sections_.find(name);
+
+	if (it == sections_.end())
+	{
+		return std::nullopt;
+	}
+
+	return it->second;
 }
 
 std::vector<std::uint8_t>& binwrite::binary_t::buffer()
@@ -245,13 +351,114 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 
 				const rva_t root_instruction_rva = basic_block.instruction_rva(i);
 
-				rva_refs_.push_back(std::make_shared<msvc_jmp_table_ref_t>(table_base, root_instruction_rva, root_instruction.size()));
+				add_rva_ref(std::make_shared<msvc_jmp_table_ref_t>(table_base, root_instruction_rva, root_instruction.size()));
 			}
 			else if (const auto table_base = resolve_instruction_rva(*latest_lea, latest_lea_rva))
 			{
 				add_llvm_jmp_table_ref(rva_t{ *table_base });
 			}
 		}
+	}
+}
+
+static void process_function_basic_block(const binwrite::binary_t& binary,
+                                         const std::shared_ptr<binwrite::function_t>& function,
+                                         const std::shared_ptr<binwrite::basic_block_t>& current_block);
+
+static void process_basic_block_target_branch(const binwrite::binary_t& binary,
+                                       const std::shared_ptr<binwrite::function_t>& function,
+                                       const std::shared_ptr<binwrite::basic_block_t>& current_block,
+                                       const binwrite::disassembled_instruction_t& last_instruction_disassembly)
+{
+	const auto last_instruction_rva = current_block->last_instruction_rva();
+
+	const auto code_rva_ref = binary.find_rva_ref(last_instruction_rva);
+
+	if (!code_rva_ref)
+	{
+		spdlog::error("unable to find code rva ref of conditional jump");
+
+		return;
+	}
+
+	const auto target_rva = *code_rva_ref->target();
+
+	const auto target_basic_block = binary.find_basic_block(target_rva);
+
+	if (!target_basic_block)
+	{
+		spdlog::error("unable to find target basic block");
+
+		return;
+	}
+
+	if (!function->find_basic_block(target_rva))
+	{
+		function->add_basic_block(target_basic_block);
+
+		process_function_basic_block(binary, function, target_basic_block);
+	}
+}
+
+static void process_basic_block_fallthrough_branch(const binwrite::binary_t& binary,
+                                            const std::shared_ptr<binwrite::function_t>& function,
+                                            const std::shared_ptr<binwrite::basic_block_t>& current_block)
+{
+	const auto fallthrough_rva = current_block->end_rva();
+
+	const auto fallthrough_basic_block = binary.find_basic_block(fallthrough_rva);
+
+	if (!fallthrough_basic_block)
+	{
+		spdlog::error("unable to find fallthrough basic block");
+
+		return;
+	}
+
+	if (!function->find_basic_block(fallthrough_rva))
+	{
+		function->add_basic_block(fallthrough_basic_block);
+
+		process_function_basic_block(binary, function, fallthrough_basic_block);
+	}
+}
+
+static void process_function_basic_block(const binwrite::binary_t& binary,
+                                  const std::shared_ptr<binwrite::function_t>& function,
+                                  const std::shared_ptr<binwrite::basic_block_t>& current_block)
+{
+	const auto& last_instruction = current_block->last_instruction();
+	const auto& last_instruction_disassembly = last_instruction.disassemble();
+
+	if (last_instruction_disassembly.is_ret() || last_instruction_disassembly.is_unconditional_jump())
+	{
+		return;
+	}
+
+	if (last_instruction_disassembly.is_conditional_jump())
+	{
+		process_basic_block_target_branch(binary, function, current_block, last_instruction_disassembly);
+	}
+
+	process_basic_block_fallthrough_branch(binary, function, current_block);
+}
+
+void binwrite::binary_t::assign_function_basic_blocks() const
+{
+	for (const auto& function : functions_)
+	{
+		const auto basic_block = find_basic_block(*function->rva());
+
+		if (!basic_block)
+		{
+			return;
+		}
+
+		function->add_basic_block(basic_block);
+
+		process_function_basic_block(*this, function, basic_block);
+
+		spdlog::info("{} has {} basic block(s)", function->name(), function->basic_blocks().size());
 	}
 }
 
@@ -270,6 +477,7 @@ void binwrite::binary_t::disassemble()
 
 		while (true)
 		{
+
 			const auto instruction_address = reinterpret_cast<const std::uint8_t*>(buffer_.data() + instruction_rva.value());
 			const auto disassembled_instruction = disassembler.disassemble(instruction_address);
 
@@ -280,9 +488,9 @@ void binwrite::binary_t::disassemble()
 
 			if (const auto overstepped_basic_block = is_inside_basic_block(rva_t{ instruction_rva }))
 			{
-				const auto index = (*overstepped_basic_block)->instruction_index(rva_t{ instruction_rva });
+				const auto index = overstepped_basic_block->instruction_index(rva_t{ instruction_rva });
 
-				split_basic_block(*overstepped_basic_block, index);
+				split_basic_block(overstepped_basic_block, index);
 
 				break;
 			}
@@ -295,7 +503,7 @@ void binwrite::binary_t::disassemble()
 			{
 				const auto target_rva = add_rva(*raw_target_rva);
 
-				rva_refs_.push_back(std::make_shared<code_rva_ref_t>(target_rva, rva_t{ instruction_rva }, disassembled_instruction->size()));
+				add_rva_ref(std::make_shared<code_rva_ref_t>(target_rva, rva_t{ instruction_rva }, disassembled_instruction->size()));
 
 				if (is_in_code_section(*target_rva))
 				{
@@ -329,6 +537,8 @@ void binwrite::binary_t::disassemble()
 	}
 
 	spdlog::info("basic block count: {}", basic_blocks_.size());
+
+	assign_function_basic_blocks();
 }
 
 void binwrite::binary_t::update_section_rvas(const rva_t disruption_rva,
@@ -359,84 +569,27 @@ void binwrite::binary_t::update_rvas(const rva_t disruption_rva, const rva_t::si
 	}
 }
 
-bool binwrite::binary_t::split_basic_block(const std::shared_ptr<basic_block_t>& basic_block, const basic_block_t::size_type index)
+std::shared_ptr<binwrite::rva_ref_t> binwrite::binary_t::find_rva_ref(const rva_t ref_rva,
+	const bool must_be_code_reference) const
 {
-	if (index == 0)
-	{
-		return true;
-	}
-
-	const auto split_rva = basic_block->instruction_rva(index);
-
-	const basic_block_t::size_type split_count = basic_block->count() - index;
-
-	const auto original_block_instructions = basic_block->instructions();
-
-	const auto start = original_block_instructions.begin() + index;
-	const auto end = start + split_count;
-
-	const std::vector new_block_instructions(start, end);
-	const auto offset_rva = add_rva(split_rva);
-
-	basic_block->erase(*this, index, split_count, false);
-
-	const auto new_basic_block = std::make_shared<basic_block_t>(offset_rva);
-
-	for (const auto& instruction : new_block_instructions)
-	{
-		new_basic_block->push(*this, instruction, true);
-	}
-
-	basic_blocks_.push_back(new_basic_block);
-
-	return true;
-}
-
-std::optional<std::shared_ptr<binwrite::basic_block_t>> binwrite::binary_t::is_inside_basic_block(const rva_t rva) const
-{
-	for (const auto& basic_block : basic_blocks_)
-	{
-		if (basic_block->contains(rva))
+	const auto found = std::ranges::find_if(rva_refs_,
+		[ref_rva, must_be_code_reference](const std::shared_ptr<rva_ref_t>& ref)
 		{
-			return basic_block;
+			if (must_be_code_reference && !ref->is_code_reference())
+			{
+				return false;
+			}
+
+			return ref->self() == ref_rva;
 		}
-	}
+	);
 
-	return std::nullopt;
-}
-
-bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
-{
-	for (const auto& queued_rva : disassembly_queue_)
+	if (found == rva_refs_.end())
 	{
-		if (*queued_rva == rva)
-		{
-			return true;
-		}
+		return { };
 	}
 
-	return false;
-}
-
-bool binwrite::binary_t::is_in_code_section(const rva_t rva)
-{
-	for (const auto& section : sections_ | std::views::values)
-	{
-		if (section.code() && section.contains(rva))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva)
-{
-	if (!is_inside_disassembly_queue(*rva) && !is_inside_basic_block(*rva))
-	{
-		disassembly_queue_.push_back(rva);
-	}
+	return *found;
 }
 
 std::shared_ptr<binwrite::rva_t> binwrite::binary_t::add_rva(const rva_t::value_type value, const bool force_inclusive)
@@ -463,6 +616,58 @@ std::shared_ptr<binwrite::rva_t> binwrite::binary_t::add_rva(const rva_t::value_
 std::shared_ptr<binwrite::rva_t> binwrite::binary_t::add_rva(const rva_t rva, const bool force_inclusive)
 {
 	return add_rva(rva.value(), force_inclusive);
+}
+
+void binwrite::binary_t::add_rva_ref(std::shared_ptr<rva_ref_t> ref)
+{
+	rva_refs_.push_back(std::move(ref));
+}
+
+void binwrite::binary_t::redirect_rva_ref(const rva_t self, const rva_t new_target)
+{
+	const auto added_rva = add_rva(new_target);
+
+	for (const auto& rva_ref : rva_refs_)
+	{
+		if (rva_ref->self() == self)
+		{
+			rva_ref->set_target(added_rva);
+		}
+	}
+}
+
+bool binwrite::binary_t::is_in_code_section(const rva_t rva)
+{
+	for (const auto& section : sections_ | std::views::values)
+	{
+		if (section.code() && section.contains(rva))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
+{
+	for (const auto& queued_rva : disassembly_queue_)
+	{
+		if (*queued_rva == rva)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva)
+{
+	if (!is_inside_disassembly_queue(*rva) && !find_basic_block(*rva))
+	{
+		disassembly_queue_.push_back(rva);
+	}
 }
 
 std::shared_ptr<binwrite::rva_t> binwrite::binary_t::add_relocation_rva(const rva_t::value_type target)
@@ -495,7 +700,7 @@ void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base)
 		const auto ref = std::make_shared<llvm_jmp_table_entry_t>(target_rva, table_entry, table_base_rva);
 
 		add_to_disassembly_queue(target_rva);
-		rva_refs_.push_back(ref);
+		add_rva_ref(ref);
 
 		table_entry.set_value(table_entry.value() + sizeof(llvm_jmp_table_entry_t::size_type));
 	}

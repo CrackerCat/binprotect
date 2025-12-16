@@ -85,6 +85,21 @@ const binwrite::register_family_t binwrite::register_family_t::fifteen = { .qwor
 
 const std::array<binwrite::register_family_t, 12> binwrite::register_family_t::general_purpose = { ax, cx, dx, bx, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };
 
+binwrite::register_t::value_type binwrite::register_t::value() const
+{
+	return value_;
+}
+
+bool binwrite::register_t::in_same_family(const register_t& other) const
+{
+	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
+
+	const auto enclosing = ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(value_));
+	const auto other_enclosing = ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(other.value_));
+
+	return enclosing == other_enclosing;
+}
+
 binwrite::register_family_t binwrite::register_t::family() const
 {
 	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
@@ -92,6 +107,43 @@ binwrite::register_family_t binwrite::register_t::family() const
 	const register_t enclosing_qword(ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(value_)));
 
 	return register_family_t::find(enclosing_qword);
+}
+
+bool binwrite::register_t::operator==(const register_t& other) const
+{
+	return value_ == other.value_ || in_same_family(other);
+}
+
+bool binwrite::register_t::operator!=(const register_t& other) const
+{
+	return value_ != other.value_ && !in_same_family(other);
+}
+
+binwrite::register_t::operator ZydisRegister_() const
+{
+	return static_cast<ZydisRegister>(value_);
+}
+
+binwrite::register_t binwrite::register_family_t::of_size(const register_t::size_type size) const
+{
+	switch (size)
+	{
+	case 64:
+		return qword;
+	case 32:
+		return dword;
+	case 16:
+		return word;
+	case 8:
+		return byte;
+	default:
+		return register_t::none;
+	}
+}
+
+bool binwrite::register_family_t::operator==(const register_family_t& other) const
+{
+	return qword == other.qword;
 }
 
 binwrite::register_family_t binwrite::register_family_t::find(const register_t qword)

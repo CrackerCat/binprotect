@@ -75,7 +75,7 @@ void binwrite::portable_executable_t::find_sections()
 		const auto next_virtual_address = i + 1 < section_count ? next_section->virtual_address : nt_headers->optional_header.size_of_image;
 
 		const auto section_name = section->to_str();
-		const bool code_section = section->characteristics.mem_execute;
+		const bool code_section = section->characteristics.cnt_code && !section->characteristics.cnt_uninit_data;
 
 		auto rva = add_rva(virtual_address);
 
@@ -474,7 +474,7 @@ void binwrite::portable_executable_t::add_relocation_rvas(const portable_executa
 					add_to_disassembly_queue(target_rva);
 				}
 
-				rva_refs_.push_back(std::make_shared<pe_dir64_reloc_t>(target_rva, *rva));
+				add_rva_ref(std::make_shared<pe_dir64_reloc_t>(target_rva, *rva));
 			}
 			else
 			{

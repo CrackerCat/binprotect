@@ -90,8 +90,14 @@ namespace binwrite
 		void set_self(rva_t self);
 
 		[[nodiscard]] std::shared_ptr<rva_t> target() const;
+		void set_target(std::shared_ptr<rva_t> target);
 
 		void process_disruption(rva_t disruption_rva, rva_t::size_type disruption_size);
+
+		virtual bool is_code_reference()
+		{
+			return false;
+		}
 
 	protected:
 		std::shared_ptr<rva_t> target_;
@@ -108,6 +114,11 @@ namespace binwrite
 					size_(size) {}
 
 		std::expected<void, error_t> update_reference(binary_t& binary) override;
+
+		bool is_code_reference() override
+		{
+			return true;
+		}
 
 	protected:
 		virtual bool update_rva_in_assembler_instruction(assembler_instruction_t& instruction) const;

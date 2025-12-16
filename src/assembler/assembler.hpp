@@ -48,6 +48,13 @@ inline std::optional<binwrite::instruction_t> nop_instruction()
 	return generic_no_operand_instruction(binwrite::mnemonic_t::nop);
 }
 
+inline binwrite::instruction_t int3_instruction()
+{
+	constexpr std::array bytes = { static_cast<std::uint8_t>(0xCC) };
+
+	return binwrite::instruction_t{ bytes };
+}
+
 inline std::optional<binwrite::instruction_t> push_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::push, source);
@@ -74,6 +81,26 @@ inline binwrite::encoder_operand_t encode_signed_imm_operand(const std::int64_t 
 	operand.set_imm({ .s = imm });
 
 	return operand;
+}
+
+inline std::optional<binwrite::instruction_t> jmp_instruction(const binwrite::encoder_operand_t& source)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::jmp, source);
+}
+
+inline std::optional<binwrite::instruction_t> jz_instruction(const binwrite::encoder_operand_t& source)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::jz, source);
+}
+
+inline std::optional<binwrite::instruction_t> jnz_instruction(const binwrite::encoder_operand_t& source)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::jnz, source);
+}
+
+inline std::optional<binwrite::instruction_t> cmp_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_dest_instruction(binwrite::mnemonic_t::cmp, source, destination);
 }
 
 inline std::optional<binwrite::instruction_t> shl_instruction(const binwrite::encoder_operand_t& destination, const std::uint8_t shift_by)

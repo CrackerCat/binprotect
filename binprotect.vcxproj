@@ -151,9 +151,11 @@
     <ClCompile Include="ext\binwrite\assembler\assembler.cpp" />
     <ClCompile Include="ext\binwrite\binary\binary.cpp" />
     <ClCompile Include="ext\binwrite\binary\portable_executable.cpp" />
+    <ClCompile Include="ext\binwrite\binary\symbols\map_parsing.cpp" />
     <ClCompile Include="ext\binwrite\disassembler\disassembler.cpp" />
     <ClCompile Include="ext\binwrite\disassembler\mnemonic.cpp" />
     <ClCompile Include="ext\binwrite\disassembler\register.cpp" />
+    <ClCompile Include="ext\binwrite\function\function.cpp" />
     <ClCompile Include="ext\binwrite\instruction\basic_block.cpp" />
     <ClCompile Include="ext\binwrite\rva\rva.cpp" />
     <ClCompile Include="ext\portable-executable\data_directory.cpp" />
@@ -165,6 +167,7 @@
     <ClCompile Include="ext\portable-executable\nt_headers.cpp" />
     <ClCompile Include="ext\portable-executable\relocations_directory.cpp" />
     <ClCompile Include="ext\portable-executable\section_header.cpp" />
+    <ClCompile Include="src\control_flow\control_flow_flattening.cpp" />
     <ClCompile Include="src\control_flow\control_flow_obfuscation.cpp" />
     <ClCompile Include="src\linear_substitution\linear_substitution.cpp" />
     <ClCompile Include="src\main.cpp" />
@@ -174,9 +177,11 @@
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp" />
     <ClInclude Include="ext\binwrite\binary\binary.hpp" />
     <ClInclude Include="ext\binwrite\binary\portable_executable.hpp" />
+    <ClInclude Include="ext\binwrite\binary\symbols\map_parsing.hpp" />
     <ClInclude Include="ext\binwrite\disassembler\disassembler.hpp" />
     <ClInclude Include="ext\binwrite\disassembler\mnemonic.hpp" />
     <ClInclude Include="ext\binwrite\disassembler\register.hpp" />
+    <ClInclude Include="ext\binwrite\function\function.hpp" />
     <ClInclude Include="ext\binwrite\instruction\basic_block.hpp" />
     <ClInclude Include="ext\binwrite\instruction\instruction.hpp" />
     <ClInclude Include="ext\binwrite\math\random.hpp" />
@@ -198,6 +203,7 @@
     <ClInclude Include="ext\portable-executable\resource_directory.hpp" />
     <ClInclude Include="ext\portable-executable\section_header.hpp" />
     <ClInclude Include="src\assembler\assembler.hpp" />
+    <ClInclude Include="src\control_flow\control_flow_flattening.hpp" />
     <ClInclude Include="src\control_flow\control_flow_obfuscation.hpp" />
     <ClInclude Include="src\linear_substitution\linear_substitution.hpp" />
     <ClInclude Include="src\mba\mba.hpp" />

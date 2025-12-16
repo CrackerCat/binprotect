@@ -1,4 +1,5 @@
 #include <binwrite/binary/portable_executable.hpp>
+#include <binwrite/binary/symbols/map_parsing.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -7,6 +8,7 @@
 #include <string>
 #include <random>
 
+#include "control_flow/control_flow_flattening.hpp"
 #include "control_flow/control_flow_obfuscation.hpp"
 #include "linear_substitution/linear_substitution.hpp"
 #include "mba/mba.hpp"
@@ -89,6 +91,18 @@ std::int32_t main()
 	pe.decompress();
 	pe.parse();
 
+	if (!binwrite::symbols::map::parse(pe, "input.map"))
+	{
+		spdlog::warn("unable to find or parse .map file");
+	}
+
+	pe.disassemble();
+
+	for (const auto& function : pe.functions())
+	{
+		binprotect::control_flow::flattening::do_pass(pe, *function);
+	}
+
 	for (const auto& basic_block : pe.basic_blocks())
 	{
 		binprotect::linear_substitution::do_pass(pe, *basic_block);
@@ -99,8 +113,6 @@ std::int32_t main()
 		{
 			binprotect::mba::do_pass(pe, *basic_block);
 		}
-
-		binprotect::linear_substitution::do_pass(pe, *basic_block);
 
 		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
 	}

@@ -12,6 +12,7 @@
 
 *.exe
 *.i64
+*.map
 
 # vcpkg
 vcpkg_installed/

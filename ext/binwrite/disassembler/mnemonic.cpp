@@ -13,6 +13,10 @@ const binwrite::mnemonic_t binwrite::mnemonic_t::mul = mnemonic_t(ZYDIS_MNEMONIC
 const binwrite::mnemonic_t binwrite::mnemonic_t::add = mnemonic_t(ZYDIS_MNEMONIC_ADD);
 const binwrite::mnemonic_t binwrite::mnemonic_t::neg = mnemonic_t(ZYDIS_MNEMONIC_NEG);
 const binwrite::mnemonic_t binwrite::mnemonic_t::mov = mnemonic_t(ZYDIS_MNEMONIC_MOV);
+const binwrite::mnemonic_t binwrite::mnemonic_t::jmp = mnemonic_t(ZYDIS_MNEMONIC_JMP);
+const binwrite::mnemonic_t binwrite::mnemonic_t::jz = mnemonic_t(ZYDIS_MNEMONIC_JZ);
+const binwrite::mnemonic_t binwrite::mnemonic_t::jnz = mnemonic_t(ZYDIS_MNEMONIC_JNZ);
+const binwrite::mnemonic_t binwrite::mnemonic_t::cmp = mnemonic_t(ZYDIS_MNEMONIC_CMP);
 const binwrite::mnemonic_t binwrite::mnemonic_t::lea = mnemonic_t(ZYDIS_MNEMONIC_LEA);
 const binwrite::mnemonic_t binwrite::mnemonic_t::test = mnemonic_t(ZYDIS_MNEMONIC_TEST);
 const binwrite::mnemonic_t binwrite::mnemonic_t::sub = mnemonic_t(ZYDIS_MNEMONIC_SUB);
@@ -21,3 +25,23 @@ const binwrite::mnemonic_t binwrite::mnemonic_t::or_ = mnemonic_t(ZYDIS_MNEMONIC
 const binwrite::mnemonic_t binwrite::mnemonic_t::xor_ = mnemonic_t(ZYDIS_MNEMONIC_XOR);
 const binwrite::mnemonic_t binwrite::mnemonic_t::not_ = mnemonic_t(ZYDIS_MNEMONIC_NOT);
 const binwrite::mnemonic_t binwrite::mnemonic_t::nop = mnemonic_t(ZYDIS_MNEMONIC_NOP);
+
+binwrite::mnemonic_t::value_type binwrite::mnemonic_t::value() const
+{
+	return value_;
+}
+
+bool binwrite::mnemonic_t::operator==(const mnemonic_t& other) const
+{
+	return value_ == other.value_;
+}
+
+bool binwrite::mnemonic_t::operator!=(const mnemonic_t& other) const
+{
+	return value_ != other.value_;
+}
+
+binwrite::mnemonic_t::operator ZydisMnemonic_() const
+{
+	return static_cast<ZydisMnemonic_>(value_);
+}

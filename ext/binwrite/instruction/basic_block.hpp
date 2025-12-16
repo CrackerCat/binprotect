@@ -27,14 +27,29 @@ namespace binwrite
 
 		void move_entire(binary_t& binary, rva_t destination) const;
 
-		void push(binary_t& binary, const instruction_t& instruction, bool pre_existing = false);
-		void push(binary_t& binary, std::span<const instruction_t> instructions, bool pre_existing = false);
+		void push(binary_t& binary, const instruction_t& instruction, bool pre_existing = false, bool inclusive = false);
+		void push(binary_t& binary, std::span<const instruction_t> instructions, bool pre_existing = false, bool inclusive = false);
 
-		void insert(binary_t& binary, const instruction_t& instruction, size_type index);
-		void insert(binary_t& binary, std::span<const instruction_t> instructions, size_type index);
+		void insert(binary_t& binary, const instruction_t& instruction, size_type index, bool inclusive = false);
+		void insert(binary_t& binary, std::span<const instruction_t> instructions, size_type index, bool inclusive = false);
 
 		void erase(binary_t& binary, size_type index, size_type count, bool affects_buffer = true);
 		void erase(binary_t& binary, size_type index, bool affects_buffer = true);
+
+		[[nodiscard]] instruction_t& last_instruction()
+		{
+			return instructions_.at(count() - 1);
+		}
+
+		[[nodiscard]] const instruction_t& last_instruction() const
+		{
+			return instructions_.at(count() - 1);
+		}
+
+		[[nodiscard]] rva_t last_instruction_rva() const
+		{
+			return instruction_rva(count() - 1);
+		}
 
 		[[nodiscard]] instruction_t& at(const size_type index)
 		{
