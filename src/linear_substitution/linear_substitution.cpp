@@ -133,9 +133,12 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 			operand.set_reg({ .value = unused_register });
 
 			instructions.push_back(push_instruction(unused_register_qword).value());
+			instructions.push_back(pushfq_instruction().value());
 
 			instructions.push_back(mov_instruction(first, unused_register).value());
 			instructions.push_back(sub_instruction(second, unused_register).value());
+
+			instructions.push_back(popfq_instruction().value());
 
 			const auto reassembled_instruction = make_assembler_instruction(instruction);
 
@@ -157,13 +160,14 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 
 				if (mem.base == binwrite::register_t::rsp)
 				{
-					value += 8;
+					value += 16;
 				}
 
 				const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, operand_size));
 				const auto second = encode_signed_imm_operand(random);
 
 				instructions.push_back(push_instruction(unused_register_qword).value());
+				instructions.push_back(pushfq_instruction().value());
 
 				const binwrite::register_t base = mem.base;
 
@@ -182,6 +186,8 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 				mem.base = unused_register_family.qword;
 				mem.has_displacement = false;
 				operand.set_mem(mem);
+
+				instructions.push_back(popfq_instruction().value());
 
 				const auto reassembled_instruction = make_assembler_instruction(instruction);
 

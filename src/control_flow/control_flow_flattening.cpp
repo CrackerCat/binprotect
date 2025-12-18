@@ -61,13 +61,14 @@ static std::shared_ptr<binwrite::rva_t> insert_entry_block_stub(binwrite::binary
 
 	const auto id_operand = encode_unsigned_imm_operand(entry_cff_block->id);
 
-	entry_block->insert(binary, push_instruction(binwrite::register_t::rax).value(), 0);
-	entry_block->insert(binary, mov_instruction(id_operand, binwrite::register_t::eax).value(), 1);
-	entry_block->insert(binary, nop_instruction().value(), 2);
+	entry_block->insert(binary, pushfq_instruction().value(), 0);
+	entry_block->insert(binary, push_instruction(binwrite::register_t::rax).value(), 1);
+	entry_block->insert(binary, mov_instruction(id_operand, binwrite::register_t::eax).value(), 2);
+	entry_block->insert(binary, nop_instruction().value(), 3);
 
 	const binwrite::rva_t new_end_rva = entry_block->end_rva();
 
-	const auto split_block = binary.split_basic_block(entry_block, 3);
+	const auto split_block = binary.split_basic_block(entry_block, 4);
 
 	function.add_basic_block(split_block);
 
@@ -83,7 +84,7 @@ static void insert_block_jump_stub(binwrite::binary_t& binary, const std::shared
 	const auto jmp_destination_operand = encode_unsigned_imm_operand(1);
 	const auto id_operand = encode_unsigned_imm_operand(cff_block.id);
 
-	constexpr std::uint32_t entry_block_stub_size = 3;
+	constexpr std::uint32_t entry_block_stub_size = 4;
 
 	stub_basic_block->insert(binary, cmp_instruction(id_operand, binwrite::register_t::eax).value(), 0 + entry_block_stub_size, true);
 
@@ -91,13 +92,14 @@ static void insert_block_jump_stub(binwrite::binary_t& binary, const std::shared
 	const auto jump_nz_instruction = jnz_instruction(jmp_destination_operand).value();
 
 	stub_basic_block->insert(binary, jump_nz_instruction, 1 + entry_block_stub_size, true);
-	stub_basic_block->insert(binary, *pop_instruction(binwrite::register_t::rax), 2 + entry_block_stub_size, true);
-	stub_basic_block->insert(binary, jump_instruction, 3 + entry_block_stub_size, true);
+	stub_basic_block->insert(binary, pop_instruction(binwrite::register_t::rax).value(), 2 + entry_block_stub_size, true);
+	stub_basic_block->insert(binary, popfq_instruction().value(), 3 + entry_block_stub_size, true);
+	stub_basic_block->insert(binary, jump_instruction, 4 + entry_block_stub_size, true);
 
 	const binwrite::rva_t jnz_rva = stub_basic_block->instruction_rva(1 + entry_block_stub_size);
-	const binwrite::rva_t block_jmp_rva = stub_basic_block->instruction_rva(3 + entry_block_stub_size);
+	const binwrite::rva_t block_jmp_rva = stub_basic_block->instruction_rva(4 + entry_block_stub_size);
 
-	const binwrite::rva_t next_branch_rva = stub_basic_block->instruction_rva(4 + entry_block_stub_size);
+	const binwrite::rva_t next_branch_rva = stub_basic_block->instruction_rva(5 + entry_block_stub_size);
 
 	binary.add_rva_ref(std::make_shared<binwrite::code_rva_ref_t>(binary.add_rva(next_branch_rva), jnz_rva, jump_nz_instruction.size()));
 	binary.add_rva_ref(std::make_shared<binwrite::code_rva_ref_t>(cff_block.basic_block->rva(), block_jmp_rva, jump_instruction.size()));
@@ -108,6 +110,7 @@ static void insert_fallthrough_block_stub(binwrite::binary_t& binary, const std:
 	const auto jmp_destination_operand = encode_unsigned_imm_operand(1);
 	const auto id_operand = encode_unsigned_imm_operand(fallthrough_cff_block.id);
 
+	basic_block->push(binary, pushfq_instruction().value(), false, true);
 	basic_block->push(binary, push_instruction(binwrite::register_t::rax).value(), false, true);
 	basic_block->push(binary, mov_instruction(id_operand, binwrite::register_t::eax).value(), false, true);
 
@@ -127,6 +130,7 @@ static void insert_target_block_stub(binwrite::binary_t& binary, const std::shar
 
 	const binwrite::rva_t end_rva = basic_block->end_rva();
 
+	basic_block->push(binary, pushfq_instruction().value(), false, true);
 	basic_block->push(binary, push_instruction(binwrite::register_t::rax).value(), false, true);
 	basic_block->push(binary, mov_instruction(id_operand, binwrite::register_t::eax).value(), false, true);
 
