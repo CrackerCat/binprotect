@@ -65,7 +65,10 @@ namespace binwrite
 		struct mem_t
 		{
 			std::int64_t displacement;
-			bool is_rip;
+			std::uint8_t scale;
+			register_t base;
+			register_t index;
+			std::uint16_t size;
 		};
 
 		struct reg_t

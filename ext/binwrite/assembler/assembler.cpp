@@ -27,8 +27,11 @@ binwrite::encoder_operand_t::mem_t binwrite::encoder_operand_t::mem() const
 {
 	mem_t mem;
 
+	mem.base = register_t(value_.mem.base);
+	mem.index = register_t(value_.mem.index);
 	mem.displacement = value_.mem.displacement;
-	mem.is_rip = value_.mem.base == ZYDIS_REGISTER_RIP;
+	mem.scale = value_.mem.scale;
+	mem.size = value_.mem.size;
 
 	return mem;
 }
@@ -36,7 +39,11 @@ binwrite::encoder_operand_t::mem_t binwrite::encoder_operand_t::mem() const
 void binwrite::encoder_operand_t::set_mem(const mem_t mem)
 {
 	value_.type = ZYDIS_OPERAND_TYPE_MEMORY;
+	value_.mem.base = mem.base;
+	value_.mem.index = mem.index;
 	value_.mem.displacement = mem.displacement;
+	value_.mem.scale = mem.scale;
+	value_.mem.size = mem.size;
 }
 
 bool binwrite::encoder_operand_t::is_reg() const

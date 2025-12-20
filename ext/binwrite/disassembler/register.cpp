@@ -3,6 +3,7 @@
 
 const binwrite::register_t binwrite::register_t::none = register_t(ZYDIS_REGISTER_NONE);
 const binwrite::register_t binwrite::register_t::rip = register_t(ZYDIS_REGISTER_RIP);
+const binwrite::register_t binwrite::register_t::rflags = register_t(ZYDIS_REGISTER_RFLAGS);
 const binwrite::register_t binwrite::register_t::rsp = register_t(ZYDIS_REGISTER_RSP);
 
 const binwrite::register_t binwrite::register_t::rax = register_t(ZYDIS_REGISTER_RAX);

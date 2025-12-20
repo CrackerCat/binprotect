@@ -308,7 +308,7 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 			latest_lea = root_instruction;
 		}
 
-		if (!latest_lea && !root_instruction.is_mov())
+		if (!latest_lea || !root_instruction.is_mov())
 		{
 			continue;
 		}

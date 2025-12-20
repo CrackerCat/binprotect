@@ -100,7 +100,7 @@ bool binwrite::code_rva_ref_t::update_rva_in_assembler_instruction(assembler_ins
 		}
 		else if (operand.is_mem())
 		{
-			if (encoder_operand_t::mem_t mem = operand.mem(); mem.is_rip)
+			if (encoder_operand_t::mem_t mem = operand.mem(); mem.base == register_t::rip)
 			{
 				mem.displacement = difference;
 

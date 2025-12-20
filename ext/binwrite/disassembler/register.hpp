@@ -29,6 +29,7 @@ namespace binwrite
 
 		static const register_t none;
 		static const register_t rip;
+		static const register_t rflags;
 		static const register_t rsp;
 
 		static const register_t rax;
@@ -107,7 +108,7 @@ namespace binwrite
 		register_t byte;
 		register_t high_byte;
 
-		[[nodiscard]] register_t of_size(const register_t::size_type size) const;
+		[[nodiscard]] register_t of_size(register_t::size_type size) const;
 
 		bool operator==(const register_family_t& other) const;
 
