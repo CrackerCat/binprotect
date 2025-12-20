@@ -55,6 +55,21 @@ inline binwrite::instruction_t int3_instruction()
 	return binwrite::instruction_t{ bytes };
 }
 
+inline std::optional<binwrite::instruction_t> setnbe_instruction(const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::setnbe, destination);
+}
+
+inline std::optional<binwrite::instruction_t> setb_instruction(const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::setb, destination);
+}
+
+inline std::optional<binwrite::instruction_t> sets_instruction(const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::sets, destination);
+}
+
 inline std::optional<binwrite::instruction_t> push_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::push, source);
@@ -83,6 +98,15 @@ inline binwrite::encoder_operand_t encode_signed_imm_operand(const std::int64_t 
 	return operand;
 }
 
+inline binwrite::encoder_operand_t encode_mem_operand(const binwrite::register_t base, const std::int64_t displacement, const std::uint16_t size, const binwrite::register_t index = binwrite::register_t::none, const std::uint8_t scale = 0)
+{
+	binwrite::encoder_operand_t operand = { };
+
+	operand.set_mem({ .displacement = displacement, .scale = scale, .base = base, .index = index, .size = size });
+
+	return operand;
+}
+
 inline std::optional<binwrite::instruction_t> jmp_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::jmp, source);
@@ -96,6 +120,16 @@ inline std::optional<binwrite::instruction_t> jz_instruction(const binwrite::enc
 inline std::optional<binwrite::instruction_t> jnz_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::jnz, source);
+}
+
+inline std::optional<binwrite::instruction_t> jb_instruction(const binwrite::encoder_operand_t& source)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::jb, source);
+}
+
+inline std::optional<binwrite::instruction_t> jnb_instruction(const binwrite::encoder_operand_t& source)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::jnb, source);
 }
 
 inline std::optional<binwrite::instruction_t> cmp_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)

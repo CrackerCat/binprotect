@@ -180,7 +180,8 @@ std::span<const binwrite::decoded_operand_t> binwrite::disassembled_instruction_
 	return { operands_.begin(), operands_.begin() + visible_operand_count };
 }
 
-binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_register() const
+binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_register(
+	const std::span<const register_family_t> excluding) const
 {
 	std::vector<register_t> used_registers = { };
 
@@ -203,10 +204,15 @@ binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_re
 
 	const auto unused_register = std::ranges::find_if(
 		register_family_t::general_purpose,
-		[&used_registers](const register_family_t family)
+		[&used_registers, excluding](const register_family_t family)
 		{
+			if (std::ranges::contains(excluding, family))
+			{
+				return false;
+			}
+
 			return std::ranges::none_of(used_registers,
-				[family](const register_t used_register)
+				[family, excluding](const register_t used_register)
 				{
 					return family == used_register.family();
 				}
@@ -215,6 +221,12 @@ binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_re
 	);
 
 	return *unused_register;
+}
+
+binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_register(
+	const register_family_t excluding) const
+{
+	return find_unused_register(std::array{ excluding });
 }
 
 bool binwrite::disassembled_instruction_t::is_jump() const
@@ -255,6 +267,11 @@ bool binwrite::disassembled_instruction_t::is_lea() const
 bool binwrite::disassembled_instruction_t::is_add() const
 {
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_ADD;
+}
+
+bool binwrite::disassembled_instruction_t::is_sub() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_SUB;
 }
 
 bool binwrite::disassembled_instruction_t::is_and() const

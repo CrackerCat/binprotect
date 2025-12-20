@@ -171,6 +171,7 @@
     <ClCompile Include="src\control_flow\control_flow_obfuscation.cpp" />
     <ClCompile Include="src\linear_substitution\linear_substitution.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\mba\flag_behaviour.cpp" />
     <ClCompile Include="src\mba\mba.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -206,6 +207,7 @@
     <ClInclude Include="src\control_flow\control_flow_flattening.hpp" />
     <ClInclude Include="src\control_flow\control_flow_obfuscation.hpp" />
     <ClInclude Include="src\linear_substitution\linear_substitution.hpp" />
+    <ClInclude Include="src\mba\flag_behaviour.hpp" />
     <ClInclude Include="src\mba\mba.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

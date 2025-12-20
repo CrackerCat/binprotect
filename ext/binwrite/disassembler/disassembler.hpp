@@ -104,7 +104,8 @@ namespace binwrite
 		[[nodiscard]] std::span<decoded_operand_t> visible_operands();
 		[[nodiscard]] std::span<const decoded_operand_t> visible_operands() const;
 
-		[[nodiscard]] register_family_t find_unused_register() const;
+		[[nodiscard]] register_family_t find_unused_register(std::span<const register_family_t> excluding = { }) const;
+		[[nodiscard]] register_family_t find_unused_register(register_family_t excluding) const;
 
 		[[nodiscard]] bool is_jump() const;
 		[[nodiscard]] bool is_conditional_jump() const;
@@ -114,6 +115,7 @@ namespace binwrite
 		[[nodiscard]] bool is_mov() const;
 		[[nodiscard]] bool is_lea() const;
 		[[nodiscard]] bool is_add() const;
+		[[nodiscard]] bool is_sub() const;
 		[[nodiscard]] bool is_and() const;
 
 		[[nodiscard]] std::string to_string() const;

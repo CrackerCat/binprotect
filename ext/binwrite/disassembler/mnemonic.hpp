@@ -37,6 +37,8 @@ namespace binwrite
 		static const mnemonic_t jmp;
 		static const mnemonic_t jz;
 		static const mnemonic_t jnz;
+		static const mnemonic_t jb;
+		static const mnemonic_t jnb;
 		static const mnemonic_t cmp;
 		static const mnemonic_t lea;
 		static const mnemonic_t test;
@@ -46,6 +48,9 @@ namespace binwrite
 		static const mnemonic_t xor_;
 		static const mnemonic_t not_;
 		static const mnemonic_t nop;
+		static const mnemonic_t setnbe;
+		static const mnemonic_t setb;
+		static const mnemonic_t sets;
 
 	protected:
 		value_type value_ = 0;
