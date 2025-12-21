@@ -477,7 +477,6 @@ void binwrite::binary_t::disassemble()
 
 		while (true)
 		{
-
 			const auto instruction_address = reinterpret_cast<const std::uint8_t*>(buffer_.data() + instruction_rva.value());
 			const auto disassembled_instruction = disassembler.disassemble(instruction_address);
 

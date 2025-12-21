@@ -69,6 +69,9 @@ namespace binwrite
 		[[nodiscard]] reg_t reg() const;
 		void set_reg(reg_t reg);
 
+		[[nodiscard]] bool is_read_action() const;
+		[[nodiscard]] bool is_write_action() const;
+
 		[[nodiscard]] size_type size() const;
 
 		operator ZydisDecodedOperand&();
@@ -94,6 +97,9 @@ namespace binwrite
 		[[nodiscard]] bool rip_relative() const;
 		[[nodiscard]] bool rsp_relative() const;
 
+		[[nodiscard]] bool reads_rflags() const;
+		[[nodiscard]] bool writes_rflags() const;
+
 		[[nodiscard]] size_type size() const;
 
 		[[nodiscard]] mnemonic_t mnemonic() const;
@@ -103,6 +109,9 @@ namespace binwrite
 
 		[[nodiscard]] std::span<decoded_operand_t> visible_operands();
 		[[nodiscard]] std::span<const decoded_operand_t> visible_operands() const;
+
+		[[nodiscard]] std::span<decoded_operand_t> hidden_operands();
+		[[nodiscard]] std::span<const decoded_operand_t> hidden_operands() const;
 
 		[[nodiscard]] register_family_t find_unused_register(std::span<const register_family_t> excluding = { }) const;
 		[[nodiscard]] register_family_t find_unused_register(register_family_t excluding) const;

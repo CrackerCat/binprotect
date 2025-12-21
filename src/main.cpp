@@ -98,23 +98,27 @@ std::int32_t main()
 
 	pe.disassemble();
 
-	for (const auto& function : pe.functions())
-	{
-		binprotect::control_flow::flattening::do_pass(pe, *function);
-	}
-
 	for (const auto& basic_block : pe.basic_blocks())
 	{
 		binprotect::linear_substitution::do_pass(pe, *basic_block);
 
 		constexpr std::uint32_t mba_passes = 4;
 
+		bool is_first_pass = true;
+
 		for (std::uint32_t i = 0; i < mba_passes; i++)
 		{
-			binprotect::mba::do_pass(pe, *basic_block);
+			binprotect::mba::do_pass(pe, *basic_block,  is_first_pass);
+
+			is_first_pass = false;
 		}
 
 		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
+	}
+
+	for (const auto& function : pe.functions())
+	{
+		binprotect::control_flow::flattening::do_pass(pe, *function);
 	}
 
 	pe.update_rva_references();

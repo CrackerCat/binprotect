@@ -80,6 +80,16 @@ void binwrite::decoded_operand_t::set_reg(const reg_t reg)
 	value_.type = ZYDIS_OPERAND_TYPE_REGISTER;
 }
 
+bool binwrite::decoded_operand_t::is_read_action() const
+{
+	return value_.actions & ZYDIS_OPERAND_ACTION_READ || value_.actions & ZYDIS_OPERAND_ACTION_CONDREAD;
+}
+
+bool binwrite::decoded_operand_t::is_write_action() const
+{
+	return value_.actions & ZYDIS_OPERAND_ACTION_WRITE || value_.actions & ZYDIS_OPERAND_ACTION_CONDWRITE;
+}
+
 binwrite::decoded_operand_t::size_type binwrite::decoded_operand_t::size() const
 {
 	return value_.size;
@@ -146,6 +156,42 @@ bool binwrite::disassembled_instruction_t::rsp_relative() const
 	return false;
 }
 
+bool binwrite::disassembled_instruction_t::reads_rflags() const
+{
+	for (const auto& operand : hidden_operands())
+	{
+		if (operand.is_reg())
+		{
+			const auto reg = operand.reg();
+
+			if (reg.value == register_t::rflags && operand.is_read_action())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool binwrite::disassembled_instruction_t::writes_rflags() const
+{
+	for (const auto& operand : hidden_operands())
+	{
+		if (operand.is_reg())
+		{
+			const auto reg = operand.reg();
+
+			if (reg.value == register_t::rflags && operand.is_write_action())
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 binwrite::disassembled_instruction_t::size_type binwrite::disassembled_instruction_t::size() const
 {
 	return decoded_instruction_.length;
@@ -178,6 +224,26 @@ std::span<const binwrite::decoded_operand_t> binwrite::disassembled_instruction_
 	const ZyanU8 visible_operand_count = decoded_instruction_.operand_count_visible;
 
 	return { operands_.begin(), operands_.begin() + visible_operand_count };
+}
+
+std::span<binwrite::decoded_operand_t> binwrite::disassembled_instruction_t::hidden_operands()
+{
+	const ZyanU8 visible_operand_count = decoded_instruction_.operand_count_visible;
+	const ZyanU8 hidden_operand_count = decoded_instruction_.operand_count - visible_operand_count;
+
+	const auto hidden_operands_begin = operands_.begin() + visible_operand_count;
+
+	return { hidden_operands_begin, hidden_operands_begin + hidden_operand_count };
+}
+
+std::span<const binwrite::decoded_operand_t> binwrite::disassembled_instruction_t::hidden_operands() const
+{
+	const ZyanU8 visible_operand_count = decoded_instruction_.operand_count_visible;
+	const ZyanU8 hidden_operand_count = decoded_instruction_.operand_count - visible_operand_count;
+
+	const auto hidden_operands_begin = operands_.begin() + visible_operand_count;
+
+	return { hidden_operands_begin, hidden_operands_begin + hidden_operand_count };
 }
 
 binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_register(

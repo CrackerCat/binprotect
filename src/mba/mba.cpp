@@ -8,13 +8,14 @@
 #include <spdlog/spdlog.h>
 
 static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instruction_t& instruction,
-                                                     const std::function<void(
+													const bool should_emulate_flags,
+													const std::function<void(
 	                                                     std::vector<binwrite::instruction_t>& instructions,
 	                                                     const binwrite::encoder_operand_t& x,
 	                                                     const binwrite::encoder_operand_t& y,
 	                                                     const binwrite::encoder_operand_t& unused_register,
 	                                                     const binwrite::encoder_operand_t& second_unused_register)>&
-                                                     callback)
+													callback)
 {
 	const auto& visible_operands = instruction.visible_operands();
 
@@ -41,22 +42,24 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 
 	instructions.push_back(push_instruction(unused_register_qword).value());
 	instructions.push_back(push_instruction(second_unused_register_qword).value());
-	instructions.push_back(pushfq_instruction().value());
 
 	instructions.push_back(mov_instruction(x, unused_register).value());
 	instructions.push_back(mov_instruction(y, second_unused_register).value());
 
-	// todo: only do if needed
-	instructions.push_back(push_instruction(unused_register_qword).value());
-
 	callback(instructions, x, y, unused_register, second_unused_register);
 
-	instructions.push_back(pop_instruction(unused_register_qword).value()); // restore 'x' value into unused register
-	instructions.push_back(popfq_instruction().value());
+	if (should_emulate_flags)
+	{
+		instructions.insert(instructions.begin() + 4, pushfq_instruction().value());
+		instructions.insert(instructions.begin() + 5, push_instruction(unused_register_qword).value());
 
-	const auto flag_emulation_instructions = binprotect::mba::emulate_flag_behaviour(instruction, x, unused_register_family, unused_register, y, second_unused_register_family, second_unused_register);
+		instructions.push_back(pop_instruction(unused_register_qword).value()); // restore 'x' value into unused register
+		instructions.push_back(popfq_instruction().value());
 
-	instructions.insert(instructions.end(), flag_emulation_instructions.begin(), flag_emulation_instructions.end());
+		const auto flag_emulation_instructions = binprotect::mba::emulate_flag_behaviour(instruction, x, unused_register_family, unused_register, y, second_unused_register_family, second_unused_register);
+
+		instructions.insert(instructions.end(), flag_emulation_instructions.begin(), flag_emulation_instructions.end());
+	}
 
 	instructions.push_back(pop_instruction(second_unused_register_qword).value());
 	instructions.push_back(pop_instruction(unused_register_qword).value());
@@ -64,16 +67,18 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 	return instructions;
 }
 
-static std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassembled_instruction_t& instruction);
-static std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassembled_instruction_t& instruction);
-static std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassembled_instruction_t& instruction);
-static std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembled_instruction_t& instruction);
-static std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassembled_instruction_t& instruction);
+static std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassembled_instruction_t& instruction, bool should_emulate_flags);
+static std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassembled_instruction_t& instruction, bool should_emulate_flags);
+static std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassembled_instruction_t& instruction, bool should_emulate_flags);
+static std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembled_instruction_t& instruction, bool should_emulate_flags);
+static std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassembled_instruction_t& instruction, bool should_emulate_flags);
 
-void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block)
+void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block, const bool is_first_pass)
 {
 	const std::span<const binwrite::instruction_t> original_instructions = basic_block.instructions();
 	const std::vector instructions(original_instructions.begin(), original_instructions.end());
+
+	auto flag_dependants = is_first_pass ? find_flag_dependent_instructions(instructions) : std::deque<flag_dependant_t>{ };
 
 	std::uint32_t added = 0;
 
@@ -86,27 +91,29 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 		try
 		{
+			const bool should_emulate_flags = should_instruction_emulate_flags(flag_dependants, i, obfuscated_instructions);
+
 			const binwrite::mnemonic_t mnemonic = disassembled_instruction.mnemonic();
 
 			if (mnemonic == binwrite::mnemonic_t::add)
 			{
-				obfuscated_instructions = mba_obfuscate_add(disassembled_instruction);
+				obfuscated_instructions = mba_obfuscate_add(disassembled_instruction, should_emulate_flags);
 			}
 			else if (mnemonic == binwrite::mnemonic_t::sub)
 			{
-				obfuscated_instructions = mba_obfuscate_sub(disassembled_instruction);
+				obfuscated_instructions = mba_obfuscate_sub(disassembled_instruction, should_emulate_flags);
 			}
 			else if (mnemonic == binwrite::mnemonic_t::and_)
 			{
-				obfuscated_instructions = mba_obfuscate_and(disassembled_instruction);
+				obfuscated_instructions = mba_obfuscate_and(disassembled_instruction, should_emulate_flags);
 			}
 			else if (mnemonic == binwrite::mnemonic_t::or_)
 			{
-				obfuscated_instructions = mba_obfuscate_or(disassembled_instruction);
+				obfuscated_instructions = mba_obfuscate_or(disassembled_instruction, should_emulate_flags);
 			}
 			else if (mnemonic == binwrite::mnemonic_t::xor_)
 			{
-				obfuscated_instructions = mba_obfuscate_xor(disassembled_instruction);
+				obfuscated_instructions = mba_obfuscate_xor(disassembled_instruction, should_emulate_flags);
 			}
 		}
 		catch (const std::exception&)
@@ -121,6 +128,7 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 		const std::uint32_t basic_block_index = i + added;
 
+		// todo: make more efficient
 		basic_block.insert(binary, obfuscated_instructions, basic_block_index);
 		basic_block.erase(binary, basic_block_index + static_cast<std::uint32_t>(obfuscated_instructions.size()));
 
@@ -128,7 +136,7 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 	}
 }
 
-std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassembled_instruction_t& instruction)
+std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
@@ -145,10 +153,10 @@ std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassemb
 			instructions.push_back(add_instruction(unused_register, x).value());
 		};
 
-	return mba_stub(instruction, callback);
+	return mba_stub(instruction, should_emulate_flags, callback);
 }
 
-std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassembled_instruction_t& instruction)
+std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
@@ -158,10 +166,10 @@ std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassemb
 			instructions.push_back(sub_instruction(unused_register, x).value());
 		};
 
-	return mba_stub(instruction, callback);
+	return mba_stub(instruction, should_emulate_flags, callback);
 }
 
-std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassembled_instruction_t& instruction)
+std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
@@ -171,10 +179,10 @@ std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassemb
 			instructions.push_back(sub_instruction(unused_register, x).value());
 		};
 
-	return mba_stub(instruction, callback);
+	return mba_stub(instruction, should_emulate_flags, callback);
 }
 
-std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassembled_instruction_t& instruction)
+std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
@@ -188,10 +196,10 @@ std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassemb
 			instructions.push_back(add_instruction(unused_register, x).value());
 		};
 
-	return mba_stub(instruction, callback);
+	return mba_stub(instruction, should_emulate_flags, callback);
 }
 
-std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembled_instruction_t& instruction)
+std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
 	const auto callback =
 		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
@@ -209,5 +217,5 @@ std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembl
 			instructions.push_back(add_instruction(unused_register, x).value());
 		};
 
-	return mba_stub(instruction, callback);
+	return mba_stub(instruction, should_emulate_flags, callback);
 }

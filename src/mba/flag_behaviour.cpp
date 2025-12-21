@@ -104,3 +104,56 @@ std::vector<binwrite::instruction_t> binprotect::mba::emulate_flag_behaviour(
 
 	return instructions;
 }
+
+std::deque<binprotect::mba::flag_dependant_t> binprotect::mba::find_flag_dependent_instructions(const std::span<const binwrite::instruction_t> instructions)
+{
+	std::deque<flag_dependant_t> flag_dependants = { };
+
+	std::int64_t closest_writer_index = -1;
+
+	for (std::uint32_t i = 0; i < instructions.size(); i++)
+	{
+		const auto& instruction = instructions[i];
+		const auto& disassembled_instruction = instruction.disassemble();
+
+		if (disassembled_instruction.writes_rflags())
+		{
+			closest_writer_index = i;
+		}
+
+		const bool is_last_instruction = i == instructions.size() - 1;
+
+		if ((is_last_instruction || disassembled_instruction.reads_rflags()) && closest_writer_index != -1)
+		{
+			flag_dependants.emplace_front(i, static_cast<std::uint32_t>(closest_writer_index));
+
+			closest_writer_index = -1;
+		}
+	}
+
+	return flag_dependants;
+}
+
+bool binprotect::mba::should_instruction_emulate_flags(std::deque<flag_dependant_t>& flag_dependants, const std::uint32_t i, std::vector<binwrite::instruction_t>& obfuscated_instructions)
+{
+	while (!flag_dependants.empty())
+	{
+		const auto closest_entry = flag_dependants.back();
+
+		if (i <= closest_entry.dependant_index)
+		{
+			if (i == closest_entry.closest_writer_index)
+			{
+				flag_dependants.pop_back();
+
+				return true;
+			}
+
+			break;
+		}
+
+		flag_dependants.pop_back();
+	}
+
+	return false;
+}
