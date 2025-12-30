@@ -1,0 +1,198 @@
+#pragma once
+#include <memory>
+#include <deque>
+#include <span>
+#include <vector>
+
+#include <binwrite/instruction/instruction.hpp>
+#include <binwrite/assembler/assembler.hpp>
+#include <binwrite/math/random.hpp>
+
+#include "../assembler/assembler.hpp"
+#include "hardware_register.hpp"
+#include "binwrite/binary/binary.hpp"
+#include "binwrite/instruction/basic_block.hpp"
+
+struct vm_instruction_t
+{
+	std::vector<binwrite::instruction_t> load = { };
+	std::vector<binwrite::instruction_t> handler = { };
+	std::vector<binwrite::instruction_t> unload = { };
+};
+
+class vm_context_t : public std::enable_shared_from_this<vm_context_t>
+{
+public:
+	using size_type = std::uint64_t;
+	using offset_type = std::uint32_t;
+
+	static constexpr size_type operand_size = 8;
+	static constexpr size_type stack_register_size = 8;
+
+	explicit vm_context_t(const std::span<const binwrite::register_family_t> stack_registers)
+			:	stack_registers_(stack_registers.begin(), stack_registers.end())
+	{
+		shuffle_registers();
+
+		for (binwrite::register_family_t& stack_register : stack_registers_)
+		{
+			free_registers_.push_back(stack_register);
+		}
+	}
+
+	void enter_virtualized_state(binwrite::binary_t& binary, binwrite::rva_t rva);
+	void exit_virtualized_state(binwrite::binary_t& binary);
+
+	void process_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly);
+
+	void compile_instruction(binwrite::binary_t& binary, binwrite::rva_t rva);
+
+	[[nodiscard]] hardware_register_t random_hardware_register();
+	void free_hardware_register(const hardware_register_t& hardware_register);
+
+	[[nodiscard]] bool in_virtualized_state() const
+	{
+		return virtualized_state_;
+	}
+
+	[[nodiscard]] std::shared_ptr<binwrite::basic_block_t> entry_block() const
+	{
+		return entry_block_;
+	}
+
+protected:
+	void shuffle_registers();
+
+	void push_registers(std::vector<binwrite::instruction_t>& instructions) const;
+	void pop_registers(std::vector<binwrite::instruction_t>& instructions) const;
+
+	[[nodiscard]] std::optional<offset_type> register_stack_offset(binwrite::register_t reg) const;
+
+	void free_instruction();
+
+	void load_instruction(std::span<const binwrite::decoded_operand_t> operands);
+
+	void handle_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
+	                        std::span<const binwrite::decoded_operand_t> original_operands);
+
+	void unload_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
+	                        std::span<const binwrite::decoded_operand_t> operands);
+
+	[[nodiscard]] static offset_type calculate_operand_offset(size_type index);
+
+	[[nodiscard]] binwrite::encoder_operand_t redirect_operand(std::vector<binwrite::instruction_t>& instructions,
+	                                                           const binwrite::encoder_operand_t& operand,
+	                                                           std::int64_t stack_offset = 0);
+
+	[[nodiscard]] binwrite::encoder_operand_t register_to_stack(binwrite::register_t reg,
+	                                                            std::uint16_t operand_width,
+	                                                            std::int64_t additional_displacement = 0) const;
+
+	[[nodiscard]] binwrite::encoder_operand_t flags_to_stack(std::int64_t additional_displacement = 0) const;
+
+	[[nodiscard]] hardware_register_t read_operand(std::vector<binwrite::instruction_t>& instructions,
+	                                               size_type index);
+
+	void load_flags(std::vector<binwrite::instruction_t>& instructions, std::int64_t operand_offset);
+
+	void save_flags(std::vector<binwrite::instruction_t>& instructions, std::int64_t operand_offset);
+
+	static void write_operand(std::vector<binwrite::instruction_t>& instructions, const hardware_register_t& holder,
+	                          const size_type index)
+	{
+		const binwrite::encoder_operand_t stack_memory = encode_stack_mem_operand(static_cast<std::int64_t>(operand_size * index), operand_size);
+
+		instructions.push_back(mov_instruction(holder->qword, stack_memory).value());
+	}
+
+	static void write_result_operand(std::vector<binwrite::instruction_t>& instructions, const hardware_register_t& holder)
+	{
+		write_operand(instructions, holder, 0);
+	}
+
+	static void allocate_operands(std::vector<binwrite::instruction_t>& instructions, const size_type count)
+	{
+		const binwrite::encoder_operand_t stack_displacement = encode_unsigned_imm_operand(operand_size * count);
+
+		instructions.push_back(sub_instruction(stack_displacement, binwrite::register_t::rsp).value());
+	}
+
+	static void free_operands(std::vector<binwrite::instruction_t>& instructions, const size_type count)
+	{
+		const binwrite::encoder_operand_t stack_displacement = encode_unsigned_imm_operand(operand_size * count);
+
+		instructions.push_back(add_instruction(stack_displacement, binwrite::register_t::rsp).value());
+	}
+
+	static void push_register(std::vector<binwrite::instruction_t>& instructions,
+	                          const binwrite::register_family_t register_family)
+	{
+		if (register_family == binwrite::register_family_t::flags)
+		{
+			instructions.push_back(pushfq_instruction().value());
+
+			return;
+		}
+
+		if (binwrite::math::random_bool())
+		{
+			instructions.push_back(push_instruction(register_family.qword).value());
+		}
+		else
+		{
+			const binwrite::encoder_operand_t stack_displacement = encode_unsigned_imm_operand(8);
+			const binwrite::encoder_operand_t stack_memory = encode_stack_mem_operand(0, 8);
+
+			instructions.push_back(sub_instruction(stack_displacement, binwrite::register_t::rsp).value());
+			instructions.push_back(mov_instruction(register_family.qword, stack_memory).value());
+		}
+	}
+
+	static void pop_register(std::vector<binwrite::instruction_t>& instructions,
+	                         const binwrite::register_family_t register_family)
+	{
+		if (register_family == binwrite::register_family_t::flags)
+		{
+			instructions.push_back(popfq_instruction().value());
+
+			return;
+		}
+
+		if (binwrite::math::random_bool())
+		{
+			instructions.push_back(pop_instruction(register_family.qword).value());
+		}
+		else
+		{
+			const binwrite::encoder_operand_t stack_displacement = encode_unsigned_imm_operand(8);
+			const binwrite::encoder_operand_t stack_memory = encode_stack_mem_operand(0, 8);
+
+			instructions.push_back(mov_instruction(stack_memory, register_family.qword).value());
+			instructions.push_back(add_instruction(stack_displacement, binwrite::register_t::rsp).value());
+		}
+	}
+
+	static void push_jump_to_block(binwrite::binary_t& binary,
+	                               const std::shared_ptr<binwrite::basic_block_t>& source_block,
+	                               const std::shared_ptr<binwrite::basic_block_t>& target_block)
+	{
+		const auto destination_placeholder = encode_unsigned_imm_operand(1);
+		const auto jump_instruction = jmp_instruction(destination_placeholder).value();
+
+		source_block->push(binary, jump_instruction, false, true);
+
+		const binwrite::rva_t jump_instruction_rva = source_block->last_instruction_rva();
+
+		binary.add_rva_ref(std::make_shared<binwrite::code_rva_ref_t>(target_block->rva(), jump_instruction_rva, jump_instruction.size()));
+	}
+
+	vm_instruction_t current_instruction_ = { };
+	std::shared_ptr<binwrite::basic_block_t> previous_block_ = { };
+	std::shared_ptr<binwrite::basic_block_t> entry_block_ = { };
+
+	std::vector<binwrite::register_family_t> stack_registers_ = { };
+	std::deque<binwrite::register_family_t> free_registers_ = { };
+
+	bool virtualized_state_ = false;
+};
+

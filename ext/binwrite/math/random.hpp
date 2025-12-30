@@ -32,6 +32,11 @@ namespace binwrite::math
 		return random_integral(min, max);
 	}
 
+	inline bool random_bool()
+	{
+		return random_integral(0, 1) == 1;
+	}
+
 	template <class T>
 	T& random_entry(const std::span<T> list)
 	{

@@ -9,7 +9,6 @@
 #include <memory>
 #include <optional>
 #include <span>
-#include <ranges>
 #include <queue>
 
 namespace binwrite
@@ -21,8 +20,8 @@ namespace binwrite
 
 		section_t() = default;
 
-		explicit section_t(std::shared_ptr<rva_t> rva, const size_type size, const bool code_section)
-				:	rva_(std::move(rva)),
+		explicit section_t(const rva_t rva, const size_type size, const bool code_section)
+				:	rva_(rva),
 					size_(size),
 					code_(code_section) { }
 
@@ -32,6 +31,7 @@ namespace binwrite
 
 		[[nodiscard]] rva_t rva() const;
 		[[nodiscard]] rva_t end_rva() const;
+
 		[[nodiscard]] bool contains(rva_t rva) const;
 		[[nodiscard]] bool code() const;
 
@@ -39,7 +39,7 @@ namespace binwrite
 		void set_size(size_type size);
 
 	protected:
-		std::shared_ptr<rva_t> rva_;
+		rva_t rva_;
 		size_type size_;
 		bool code_;
 	};
@@ -86,7 +86,10 @@ namespace binwrite
 		[[nodiscard]] std::span<std::shared_ptr<function_t>> functions();
 		[[nodiscard]] std::span<const std::shared_ptr<function_t>> functions() const;
 
-		void create_function(const std::string& name, rva_t rva);
+		std::shared_ptr<function_t> create_function(const std::string& name, rva_t rva);
+
+		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva, std::span<const instruction_t> instructions);
+		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva);
 
 		[[nodiscard]] std::span<std::shared_ptr<basic_block_t>> basic_blocks();
 		[[nodiscard]] std::span<const std::shared_ptr<basic_block_t>> basic_blocks() const;
@@ -98,12 +101,13 @@ namespace binwrite
 		[[nodiscard]] std::vector<std::shared_ptr<rva_t>> rvas();
 		[[nodiscard]] std::vector<std::shared_ptr<rva_ref_t>> rva_refs();
 
-		[[nodiscard]] std::unordered_map<std::string, section_t>& sections();
-		[[nodiscard]] const std::unordered_map<std::string, section_t>& sections() const;
+		[[nodiscard]] std::unordered_map<std::string, std::shared_ptr<section_t>>& sections();
+		[[nodiscard]] const std::unordered_map<std::string, std::shared_ptr<section_t>>& sections() const;
 
-		[[nodiscard]] std::vector<section_t> ordered_sections() const;
+		[[nodiscard]] std::vector<std::shared_ptr<section_t>> ordered_sections() const;
 
-		[[nodiscard]] std::optional<section_t> find_section(const std::string& name) const;
+		[[nodiscard]] std::shared_ptr<section_t> find_section(const std::string& name) const;
+		[[nodiscard]] std::shared_ptr<section_t> code_section() const;
 
 		[[nodiscard]] std::vector<std::uint8_t>& buffer();
 		[[nodiscard]] const std::vector<std::uint8_t>& buffer() const;
@@ -132,7 +136,7 @@ namespace binwrite
 		void find_jump_tables(const basic_block_t& basic_block);
 		void assign_function_basic_blocks() const;
 
-		void update_section_rvas(rva_t disruption_rva, rva_t::size_type disruption_size, bool inclusive);
+		void update_section_rvas(rva_t disruption_rva, rva_t::size_type disruption_size);
 
 		bool is_in_code_section(rva_t rva);
 
@@ -159,7 +163,7 @@ namespace binwrite
 		void add_msvc_jmp_table_ref(rva_t table_base);
 
 		std::vector<std::uint8_t> buffer_;
-		std::unordered_map<std::string, section_t> sections_;
+		std::unordered_map<std::string, std::shared_ptr<section_t>> sections_;
 
 		std::vector<std::shared_ptr<rva_t>> rvas_;
 		std::vector<std::shared_ptr<rva_ref_t>> rva_refs_;

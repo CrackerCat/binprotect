@@ -11,6 +11,8 @@ void binwrite::section_t::process_disruption(const rva_t disruption_rva,
 	{
 		size_ += disruption_size;
 	}
+
+	rva_.process_disruption(disruption_rva, disruption_size, false);
 }
 
 void binwrite::section_t::insert(binary_t& binary, const rva_t section_offset, const std::span<const std::uint8_t> data)
@@ -22,7 +24,7 @@ void binwrite::section_t::insert(binary_t& binary, const rva_t section_offset, c
 
 	auto& buffer = binary.buffer();
 
-	const rva_t insertion_rva(rva_->value() + section_offset.value());
+	const rva_t insertion_rva(rva_.value() + section_offset.value());
 
 	buffer.insert(buffer.begin() + insertion_rva.value(), data.begin(), data.end());
 
@@ -33,12 +35,12 @@ void binwrite::section_t::insert(binary_t& binary, const rva_t section_offset, c
 
 binwrite::rva_t binwrite::section_t::rva() const
 {
-	return *rva_;
+	return rva_;
 }
 
 binwrite::rva_t binwrite::section_t::end_rva() const
 {
-	return rva_t{ rva_->value() + size_ };
+	return rva_t{ rva_.value() + size_ };
 }
 
 binwrite::section_t::size_type binwrite::section_t::size() const
@@ -53,7 +55,7 @@ void binwrite::section_t::set_size(const size_type size)
 
 bool binwrite::section_t::contains(const rva_t rva) const
 {
-	const auto section_start = rva_t{ rva_->value() };
+	const auto section_start = rva_t{ rva_.value() };
 	const auto section_end = rva_t{ section_start.value() + size_ };
 
 	return section_start <= rva && rva < section_end;
@@ -108,15 +110,50 @@ std::span<const std::shared_ptr<binwrite::function_t>> binwrite::binary_t::funct
 	return functions_;
 }
 
-void binwrite::binary_t::create_function(const std::string& name, const rva_t rva)
+std::shared_ptr<binwrite::function_t> binwrite::binary_t::create_function(const std::string& name, const rva_t rva)
 {
 	const auto added_rva = add_rva(rva);
-
 	const auto function = std::make_shared<function_t>(name, added_rva);
 
 	functions_.push_back(function);
 
 	add_to_disassembly_queue(added_rva);
+
+	return function;
+}
+
+std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::create_basic_block(const rva_t rva, const std::span<const instruction_t> instructions)
+{
+	rva_t instruction_rva = rva;
+
+	for (const auto& instruction : instructions)
+	{
+		insert(instruction_rva, instruction.bytes(), true);
+
+		instruction_rva.set_value(instruction_rva.value() + instruction.size());
+	}
+
+	const auto added_rva = add_rva(rva);
+	const auto basic_block = std::make_shared<basic_block_t>(added_rva);
+
+	basic_blocks_.push_back(basic_block);
+
+	for (const auto& instruction : instructions | std::views::reverse)
+	{
+		basic_block->push(*this, instruction, true);
+	}
+
+	return basic_block;
+}
+
+std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::create_basic_block(const rva_t rva)
+{
+	const auto added_rva = add_rva(rva);
+	const auto basic_block = std::make_shared<basic_block_t>(added_rva);
+
+	basic_blocks_.push_back(basic_block);
+
+	return basic_block;
 }
 
 std::span<std::shared_ptr<binwrite::basic_block_t>> binwrite::binary_t::basic_blocks()
@@ -198,42 +235,55 @@ std::vector<std::shared_ptr<binwrite::rva_ref_t>> binwrite::binary_t::rva_refs()
 	return rva_refs_;
 }
 
-std::unordered_map<std::string, binwrite::section_t>& binwrite::binary_t::sections()
+std::unordered_map<std::string, std::shared_ptr<binwrite::section_t>>& binwrite::binary_t::sections()
 {
 	return sections_;
 }
 
-const std::unordered_map<std::string, binwrite::section_t>& binwrite::binary_t::sections() const
+const std::unordered_map<std::string, std::shared_ptr<binwrite::section_t>>& binwrite::binary_t::sections() const
 {
 	return sections_;
 }
 
-std::vector<binwrite::section_t> binwrite::binary_t::ordered_sections() const
+std::vector<std::shared_ptr<binwrite::section_t>> binwrite::binary_t::ordered_sections() const
 {
 	const auto sections_view = sections_ | std::views::values;
 
 	std::vector ordered_sections(sections_view.begin(), sections_view.end());
 
 	std::ranges::sort(ordered_sections,
-		[](const section_t& left, const section_t& right)
+		[](const std::shared_ptr<section_t>& left, const std::shared_ptr<section_t>& right)
 		{
-			return left.rva() < right.rva();
+			return left->rva() < right->rva();
 		}
 	);
 
 	return ordered_sections;
 }
 
-std::optional<binwrite::section_t> binwrite::binary_t::find_section(const std::string& name) const
+std::shared_ptr<binwrite::section_t> binwrite::binary_t::find_section(const std::string& name) const
 {
 	const auto it = sections_.find(name);
 
 	if (it == sections_.end())
 	{
-		return std::nullopt;
+		return { };
 	}
 
 	return it->second;
+}
+
+std::shared_ptr<binwrite::section_t> binwrite::binary_t::code_section() const
+{
+	for (const auto& section : sections_ | std::views::values)
+	{
+		if (section->code())
+		{
+			return section;
+		}
+	}
+
+	return { };
 }
 
 std::vector<std::uint8_t>& binwrite::binary_t::buffer()
@@ -270,7 +320,7 @@ void binwrite::binary_t::update_rva_references()
 		{
 			if (result.error() == rva_ref_t::error_t::instruction_length_changed)
 			{
-				spdlog::warn("rva reference at 0x{:X} had instruction length change", rva_ref->self().value());
+				//spdlog::warn("rva reference at 0x{:X} had instruction length change", rva_ref->self().value());
 
 				update_section_headers();
 
@@ -541,11 +591,11 @@ void binwrite::binary_t::disassemble()
 }
 
 void binwrite::binary_t::update_section_rvas(const rva_t disruption_rva,
-	const rva_t::size_type disruption_size, const bool inclusive)
+	const rva_t::size_type disruption_size)
 {
-	for (auto& section : sections_ | std::views::values)
+	for (const auto& section : sections_ | std::views::values)
 	{
-		section.process_disruption(disruption_rva, disruption_size);
+		section->process_disruption(disruption_rva, disruption_size);
 	}
 }
 
@@ -554,7 +604,7 @@ void binwrite::binary_t::update_rvas(const rva_t disruption_rva, const rva_t::si
 {
 	if (update_sections)
 	{
-		update_section_rvas(disruption_rva, disruption_size, inclusive);
+		update_section_rvas(disruption_rva, disruption_size);
 	}
 
 	for (const auto& rva : rvas_)
@@ -639,7 +689,7 @@ bool binwrite::binary_t::is_in_code_section(const rva_t rva)
 {
 	for (const auto& section : sections_ | std::views::values)
 	{
-		if (section.code() && section.contains(rva))
+		if (section->code() && section->contains(rva))
 		{
 			return true;
 		}

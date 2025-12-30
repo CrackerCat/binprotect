@@ -48,6 +48,7 @@ namespace binwrite
 		static const mnemonic_t xor_;
 		static const mnemonic_t not_;
 		static const mnemonic_t nop;
+		static const mnemonic_t ret;
 		static const mnemonic_t setnbe;
 		static const mnemonic_t setb;
 		static const mnemonic_t sets;

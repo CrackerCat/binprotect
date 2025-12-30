@@ -90,6 +90,15 @@
     <ClCompile Include="src\mba\flag_behaviour.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\virtual_machine\hardware_register.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\virtual_machine\virtual_machine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\virtual_machine\vm_context.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp">
@@ -192,6 +201,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\mba\flag_behaviour.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\virtual_machine\hardware_register.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\virtual_machine\virtual_machine.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\virtual_machine\vm_context.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

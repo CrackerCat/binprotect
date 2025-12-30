@@ -48,6 +48,11 @@ inline std::optional<binwrite::instruction_t> nop_instruction()
 	return generic_no_operand_instruction(binwrite::mnemonic_t::nop);
 }
 
+inline std::optional<binwrite::instruction_t> ret_instruction()
+{
+	return generic_no_operand_instruction(binwrite::mnemonic_t::ret);
+}
+
 inline binwrite::instruction_t int3_instruction()
 {
 	constexpr std::array bytes = { static_cast<std::uint8_t>(0xCC) };
@@ -107,9 +112,21 @@ inline binwrite::encoder_operand_t encode_mem_operand(const binwrite::register_t
 	return operand;
 }
 
+static binwrite::encoder_operand_t encode_stack_mem_operand(const std::int64_t displacement, const std::uint16_t size)
+{
+	const binwrite::register_t stack_register = binwrite::register_t::rsp;
+
+	return encode_mem_operand(stack_register, displacement, size);
+}
+
 inline std::optional<binwrite::instruction_t> jmp_instruction(const binwrite::encoder_operand_t& source)
 {
 	return generic_src_instruction(binwrite::mnemonic_t::jmp, source);
+}
+
+inline std::optional<binwrite::instruction_t> call_instruction(const binwrite::encoder_operand_t& source)
+{
+	return generic_src_instruction(binwrite::mnemonic_t::call, source);
 }
 
 inline std::optional<binwrite::instruction_t> jz_instruction(const binwrite::encoder_operand_t& source)

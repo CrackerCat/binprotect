@@ -65,7 +65,7 @@ bool binwrite::symbols::map::parse(binary_t& binary, const std::filesystem::path
 
 		const auto& section = ordered_sections[section_index];
 
-		if (!section.code())
+		if (!section->code())
 		{
 			continue;
 		}

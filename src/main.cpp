@@ -8,6 +8,7 @@
 #include <string>
 #include <random>
 
+#include "virtual_machine/virtual_machine.hpp"
 #include "control_flow/control_flow_flattening.hpp"
 #include "control_flow/control_flow_obfuscation.hpp"
 #include "linear_substitution/linear_substitution.hpp"
@@ -98,7 +99,17 @@ std::int32_t main()
 
 	pe.disassemble();
 
-	for (const auto& basic_block : pe.basic_blocks())
+	for (const auto& function : pe.functions())
+	{
+		binprotect::control_flow::flattening::do_pass(pe, *function);
+	}
+
+	const auto original_basic_blocks = pe.basic_blocks();
+	const std::vector basic_blocks(original_basic_blocks.begin(), original_basic_blocks.end());
+
+	const auto code_section = pe.code_section();
+
+	for (const auto& basic_block : basic_blocks)
 	{
 		binprotect::linear_substitution::do_pass(pe, *basic_block);
 
@@ -108,17 +119,14 @@ std::int32_t main()
 
 		for (std::uint32_t i = 0; i < mba_passes; i++)
 		{
-			binprotect::mba::do_pass(pe, *basic_block,  is_first_pass);
+			binprotect::mba::do_pass(pe, *basic_block, is_first_pass);
 
 			is_first_pass = false;
 		}
 
-		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
-	}
+		binprotect::vm::do_pass(pe, *basic_block, code_section->rva());
 
-	for (const auto& function : pe.functions())
-	{
-		binprotect::control_flow::flattening::do_pass(pe, *function);
+		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
 	}
 
 	pe.update_rva_references();

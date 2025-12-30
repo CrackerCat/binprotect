@@ -72,14 +72,16 @@ void binwrite::portable_executable_t::find_sections()
 		const auto next_section = section + 1;
 
 		const auto virtual_address = section->virtual_address;
-		const auto next_virtual_address = i + 1 < section_count ? next_section->virtual_address : nt_headers->optional_header.size_of_image;
+		const auto next_virtual_address = i + 1 < section_count
+			                                  ? next_section->virtual_address
+			                                  : nt_headers->optional_header.size_of_image;
 
 		const auto section_name = section->to_str();
 		const bool code_section = section->characteristics.cnt_code && !section->characteristics.cnt_uninit_data;
 
-		auto rva = add_rva(virtual_address);
-
-		sections_[section_name] = section_t(std::move(rva), static_cast<section_t::size_type>(next_virtual_address - virtual_address), code_section);
+		sections_[section_name] = std::make_shared<section_t>(rva_t{ virtual_address },
+															  next_virtual_address - virtual_address,
+		                                                      code_section);
 	}
 }
 
@@ -104,7 +106,7 @@ void binwrite::portable_executable_t::update_section_headers()
 		const auto section_name = section_header.to_str();
 		auto& info = sections_[section_name];
 
-		const auto size = info.size();
+		const auto size = info->size();
 
 		const auto unaligned_section_end = section_virtual_address + size;
 		const auto aligned_section_end = img->calculate_alignment(unaligned_section_end, nt_headers->optional_header.section_alignment);
@@ -114,7 +116,7 @@ void binwrite::portable_executable_t::update_section_headers()
 		if (padding_size)
 		{
 			const auto offset = rva_t{ unaligned_section_end };
-			const std::uint8_t padding_value = info.code() ? 0xCC : 0x00;
+			const std::uint8_t padding_value = info->code() ? 0xCC : 0x00;
 
 			if (buffer_.size() <= offset.value())
 			{
@@ -133,7 +135,7 @@ void binwrite::portable_executable_t::update_section_headers()
 		section_header.virtual_address = section_virtual_address;
 		section_header.virtual_size = new_size;
 
-		info.set_size(new_size);
+		info->set_size(new_size);
 
 		section_header.pointer_to_raw_data = section_header.virtual_address;
 		section_header.size_of_raw_data = section_header.virtual_size;

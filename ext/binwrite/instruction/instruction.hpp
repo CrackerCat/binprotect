@@ -2,6 +2,8 @@
 #include <array>
 #include <span>
 
+#include "../disassembler/disassembler.hpp"
+
 namespace binwrite
 {
 	class instruction_t

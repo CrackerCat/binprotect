@@ -36,7 +36,7 @@ namespace binwrite
 				value_.mem.index = decoded_operand.mem.index;
 				value_.mem.scale = decoded_operand.mem.scale;
 				value_.mem.displacement = decoded_operand.mem.disp.value;
-				value_.mem.size = decoded_operand.size;
+				value_.mem.size = decoded_operand.size / 8;
 
 				break;
 			case ZYDIS_OPERAND_TYPE_POINTER:

@@ -192,9 +192,27 @@ bool binwrite::disassembled_instruction_t::writes_rflags() const
 	return false;
 }
 
+bool binwrite::disassembled_instruction_t::writes_result() const
+{
+	for (const auto& operand : visible_operands())
+	{
+		if (operand.is_write_action())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 binwrite::disassembled_instruction_t::size_type binwrite::disassembled_instruction_t::size() const
 {
 	return decoded_instruction_.length;
+}
+
+binwrite::disassembled_instruction_t::size_type binwrite::disassembled_instruction_t::operand_width() const
+{
+	return decoded_instruction_.operand_width;
 }
 
 binwrite::mnemonic_t binwrite::disassembled_instruction_t::mnemonic() const
@@ -330,6 +348,16 @@ bool binwrite::disassembled_instruction_t::is_lea() const
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_LEA;
 }
 
+bool binwrite::disassembled_instruction_t::is_rol() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_ROL;
+}
+
+bool binwrite::disassembled_instruction_t::is_ror() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_ROR;
+}
+
 bool binwrite::disassembled_instruction_t::is_add() const
 {
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_ADD;
@@ -343,6 +371,26 @@ bool binwrite::disassembled_instruction_t::is_sub() const
 bool binwrite::disassembled_instruction_t::is_and() const
 {
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_AND;
+}
+
+bool binwrite::disassembled_instruction_t::is_nop() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_NOP;
+}
+
+bool binwrite::disassembled_instruction_t::is_movsb() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_MOVSB;
+}
+
+bool binwrite::disassembled_instruction_t::is_movsxd() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_MOVSXD;
+}
+
+bool binwrite::disassembled_instruction_t::is_cmp() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_CMP;
 }
 
 std::string binwrite::disassembled_instruction_t::to_string() const

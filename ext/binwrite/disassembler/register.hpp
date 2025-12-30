@@ -19,8 +19,12 @@ namespace binwrite
 
 		[[nodiscard]] value_type value() const;
 
+		[[nodiscard]] size_type width() const;
+
 		[[nodiscard]] bool in_same_family(const register_t& other) const;
 		[[nodiscard]] register_family_t family() const;
+
+		[[nodiscard]] bool is_high_byte() const;
 
 		bool operator==(const register_t& other) const;
 		bool operator!=(const register_t& other) const;
@@ -29,8 +33,10 @@ namespace binwrite
 
 		static const register_t none;
 		static const register_t rip;
+
 		static const register_t rflags;
-		static const register_t rsp;
+		static const register_t eflags;
+		static const register_t flags;
 
 		static const register_t rax;
 		static const register_t eax;
@@ -55,6 +61,26 @@ namespace binwrite
 		static const register_t bx;
 		static const register_t bl;
 		static const register_t bh;
+
+		static const register_t rsi;
+		static const register_t esi;
+		static const register_t si;
+		static const register_t sil;
+
+		static const register_t rdi;
+		static const register_t edi;
+		static const register_t di;
+		static const register_t dil;
+
+		static const register_t rbp;
+		static const register_t ebp;
+		static const register_t bp;
+		static const register_t bpl;
+
+		static const register_t rsp;
+		static const register_t esp;
+		static const register_t sp;
+		static const register_t spl;
 
 		static const register_t r8;
 		static const register_t r8d;
@@ -116,10 +142,15 @@ namespace binwrite
 		static [[nodiscard]] register_family_t random();
 
 		static const register_family_t none;
+
 		static const register_family_t ax;
 		static const register_family_t cx;
 		static const register_family_t dx;
 		static const register_family_t bx;
+		static const register_family_t si;
+		static const register_family_t di;
+		static const register_family_t bp;
+		static const register_family_t sp;
 		static const register_family_t eight;
 		static const register_family_t nine;
 		static const register_family_t ten;
@@ -129,6 +160,8 @@ namespace binwrite
 		static const register_family_t fourteen;
 		static const register_family_t fifteen;
 
-		static const std::array<register_family_t, 12> general_purpose;
+		static const register_family_t flags;
+
+		static const std::array<register_family_t, 14> general_purpose;
 	};
 }

@@ -99,8 +99,10 @@ namespace binwrite
 
 		[[nodiscard]] bool reads_rflags() const;
 		[[nodiscard]] bool writes_rflags() const;
+		[[nodiscard]] bool writes_result() const;
 
 		[[nodiscard]] size_type size() const;
+		[[nodiscard]] size_type operand_width() const;
 
 		[[nodiscard]] mnemonic_t mnemonic() const;
 
@@ -123,9 +125,15 @@ namespace binwrite
 		[[nodiscard]] bool is_ret() const;
 		[[nodiscard]] bool is_mov() const;
 		[[nodiscard]] bool is_lea() const;
+		[[nodiscard]] bool is_rol() const;
+		[[nodiscard]] bool is_ror() const;
 		[[nodiscard]] bool is_add() const;
 		[[nodiscard]] bool is_sub() const;
 		[[nodiscard]] bool is_and() const;
+		[[nodiscard]] bool is_nop() const;
+		[[nodiscard]] bool is_movsb() const;
+		[[nodiscard]] bool is_movsxd() const;
+		[[nodiscard]] bool is_cmp() const;
 
 		[[nodiscard]] std::string to_string() const;
 
