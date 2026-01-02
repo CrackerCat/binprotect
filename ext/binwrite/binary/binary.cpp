@@ -53,10 +53,25 @@ void binwrite::section_t::set_size(const size_type size)
 	size_ = size;
 }
 
+binwrite::section_t::size_type binwrite::section_t::padding() const
+{
+	return padding_;
+}
+
+void binwrite::section_t::set_padding(const size_type padding)
+{
+	padding_ = padding;
+}
+
+void binwrite::section_t::remove_padding(const size_type size)
+{
+	padding_ -= size;
+}
+
 bool binwrite::section_t::contains(const rva_t rva) const
 {
-	const auto section_start = rva_t{ rva_.value() };
-	const auto section_end = rva_t{ section_start.value() + size_ };
+	const auto section_start = rva_;
+	const auto section_end = end_rva();
 
 	return section_start <= rva && rva < section_end;
 }
@@ -286,6 +301,20 @@ std::shared_ptr<binwrite::section_t> binwrite::binary_t::code_section() const
 	return { };
 }
 
+bool binwrite::binary_t::is_in_code_section(const rva_t rva) const
+{
+	for (const auto& section : sections_ | std::views::values)
+	{
+		if (section->code() && section->contains(rva))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 std::vector<std::uint8_t>& binwrite::binary_t::buffer()
 {
 	return buffer_;
@@ -308,6 +337,11 @@ const std::uint8_t* binwrite::binary_t::data() const
 
 void binwrite::binary_t::update_rva_references()
 {
+	for (const auto& rva_ref : rva_refs_)
+	{
+		rva_ref->update_reference(*this);
+	}
+
 	update_section_headers();
 
 	for (std::uint64_t i = 0; i < rva_refs_.size();)
@@ -318,10 +352,10 @@ void binwrite::binary_t::update_rva_references()
 
 		if (!result)
 		{
+			spdlog::warn("rva reference at 0x{:X} had instruction length change", rva_ref->self().value());
+
 			if (result.error() == rva_ref_t::error_t::instruction_length_changed)
 			{
-				//spdlog::warn("rva reference at 0x{:X} had instruction length change", rva_ref->self().value());
-
 				update_section_headers();
 
 				i = 0;
@@ -336,8 +370,6 @@ void binwrite::binary_t::update_rva_references()
 	}
 
 	update_relocations();
-
-	// just in case relocations change section size
 	update_section_headers();
 }
 
@@ -512,7 +544,7 @@ void binwrite::binary_t::assign_function_basic_blocks() const
 	}
 }
 
-void binwrite::binary_t::disassemble()
+void binwrite::binary_t::process_disassembly_queue()
 {
 	const disassembler_t disassembler;
 
@@ -580,14 +612,18 @@ void binwrite::binary_t::disassemble()
 		if (basic_block.count())
 		{
 			find_jump_tables(basic_block);
-				
+
 			basic_blocks_.push_back(std::make_shared<basic_block_t>(std::move(basic_block)));
 		}
 	}
+}
+
+void binwrite::binary_t::disassemble()
+{
+	process_disassembly_queue();
+	assign_function_basic_blocks();
 
 	spdlog::info("basic block count: {}", basic_blocks_.size());
-
-	assign_function_basic_blocks();
 }
 
 void binwrite::binary_t::update_section_rvas(const rva_t disruption_rva,
@@ -685,19 +721,6 @@ void binwrite::binary_t::redirect_rva_ref(const rva_t self, const rva_t new_targ
 	}
 }
 
-bool binwrite::binary_t::is_in_code_section(const rva_t rva)
-{
-	for (const auto& section : sections_ | std::views::values)
-	{
-		if (section->code() && section->contains(rva))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
 {
 	for (const auto& queued_rva : disassembly_queue_)
@@ -757,8 +780,6 @@ void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base)
 
 void binwrite::binary_t::add_msvc_jmp_table_ref(const rva_t table_base)
 {
-	const auto table_base_rva = add_rva(table_base);
-
 	rva_t table_entry = table_base;
 
 	while (true)

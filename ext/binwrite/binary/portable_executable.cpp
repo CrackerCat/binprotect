@@ -79,9 +79,10 @@ void binwrite::portable_executable_t::find_sections()
 		const auto section_name = section->to_str();
 		const bool code_section = section->characteristics.cnt_code && !section->characteristics.cnt_uninit_data;
 
-		sections_[section_name] = std::make_shared<section_t>(rva_t{ virtual_address },
-															  next_virtual_address - virtual_address,
-		                                                      code_section);
+		const auto total_size = next_virtual_address - virtual_address;
+		const auto padding_size = total_size - section->virtual_size;
+
+		sections_[section_name] = std::make_shared<section_t>(rva_t{ virtual_address }, total_size, padding_size, code_section);
 	}
 }
 
@@ -108,29 +109,56 @@ void binwrite::portable_executable_t::update_section_headers()
 
 		const auto size = info->size();
 
+		const auto alignment = nt_headers->optional_header.section_alignment;
+
 		const auto unaligned_section_end = section_virtual_address + size;
-		const auto aligned_section_end = img->calculate_alignment(unaligned_section_end, nt_headers->optional_header.section_alignment);
+		const auto aligned_section_end = img->calculate_alignment(unaligned_section_end, alignment);
 
-		const auto padding_size = static_cast<std::int32_t>(aligned_section_end - unaligned_section_end);
+		const auto excess = unaligned_section_end % alignment;
 
-		if (padding_size)
+		std::uint32_t new_size = size;
+
+		if (excess)
 		{
-			const auto offset = rva_t{ unaligned_section_end };
-			const std::uint8_t padding_value = info->code() ? 0xCC : 0x00;
-
-			if (buffer_.size() <= offset.value())
+			if (excess <= info->padding())
 			{
-				buffer_.insert(buffer_.end(), padding_size, padding_value);
+				const rva_t::value_type excess_rva = info->end_rva().value() - excess;
+				const auto excess_begin = buffer_.begin() + excess_rva;
+
+				buffer_.erase(excess_begin, excess_begin + static_cast<rva_t::size_type>(excess));
+
+				update_rvas(rva_t{ excess_rva }, -static_cast<std::int32_t>(excess), true, false);
+
+				info->remove_padding(excess);
+
+				new_size -= excess;
 			}
 			else
 			{
-				buffer_.insert(buffer_.begin() + offset.value(), padding_size, padding_value);
+				const auto padding_size = static_cast<std::int32_t>(aligned_section_end - unaligned_section_end);
+
+				if (padding_size)
+				{
+					const auto offset = rva_t{ unaligned_section_end };
+					const std::uint8_t padding_value = info->code() ? 0xCC : 0x00;
+
+					if (buffer_.size() <= offset.value())
+					{
+						buffer_.insert(buffer_.end(), padding_size, padding_value);
+					}
+					else
+					{
+						buffer_.insert(buffer_.begin() + offset.value(), padding_size, padding_value);
+					}
+
+					update_rvas(offset, static_cast<rva_t::size_type>(padding_size), true, false);
+				}
+
+				info->set_padding(info->padding() + padding_size);
+
+				new_size += padding_size;
 			}
-
-			update_rvas(offset, static_cast<rva_t::size_type>(padding_size), true, false);
 		}
-
-		const std::uint32_t new_size = size + padding_size;
 
 		section_header.virtual_address = section_virtual_address;
 		section_header.virtual_size = new_size;

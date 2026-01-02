@@ -128,7 +128,7 @@ std::expected<void, binwrite::rva_ref_t::error_t> binwrite::code_rva_ref_t::comp
 	if (compiled_size != size_)
 	{
 		binary.insert(self_rva, static_cast<rva_t::size_type>(compiled_size));
-		binary.erase(self_rva, static_cast<rva_t::size_type>(size_));
+		binary.erase(self_rva, size_);
 
 		self_ = self_rva;
 		size_ = static_cast<size_type>(compiled_size);

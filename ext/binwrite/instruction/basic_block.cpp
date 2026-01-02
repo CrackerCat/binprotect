@@ -111,43 +111,67 @@ void binwrite::basic_block_t::move_entire(binary_t& binary, rva_t destination) c
 	*rva_ = destination;
 }
 
-void binwrite::basic_block_t::push(binary_t& binary, const instruction_t& instruction, const bool pre_existing, const bool inclusive)
+static std::vector<std::uint8_t> group_instruction_bytes(const std::span<const binwrite::instruction_t> instructions)
 {
-	if (!pre_existing)
-	{
-		const rva_t rva = instruction_rva(count());
+	std::vector<std::uint8_t> bytes;
 
-		binary.insert(rva, instruction.bytes(), inclusive);	
+	for (const auto& instruction : instructions)
+	{
+		const auto current_bytes = instruction.bytes();
+
+		bytes.insert(bytes.end(), current_bytes.begin(), current_bytes.end());
 	}
 
-	instructions_.push_back(instruction);
+	return bytes;
+}
+
+static binwrite::rva_t::size_type group_instructions_size(const std::span<const binwrite::instruction_t> instructions)
+{
+	binwrite::rva_t::size_type size = 0;
+
+	for (const auto& instruction : instructions)
+	{
+		const auto current_bytes = instruction.bytes();
+
+		size += static_cast<binwrite::rva_t::size_type>(current_bytes.size());
+	}
+
+	return size;
+}
+
+void binwrite::basic_block_t::push(binary_t& binary, const instruction_t& instruction, const bool pre_existing, const bool inclusive)
+{
+	push(binary, std::array{ instruction }, pre_existing, inclusive);
 }
 
 void binwrite::basic_block_t::push(binary_t& binary, const std::span<const instruction_t> instructions, const bool pre_existing, const bool inclusive)
 {
-	for (const auto& instruction : instructions)
+	if (!pre_existing)
 	{
-		push(binary, instruction, pre_existing, inclusive);
+		const rva_t rva = instruction_rva(count());
+		const auto bytes = group_instruction_bytes(instructions);
+
+		binary.insert(rva, bytes, inclusive);
 	}
+
+	instructions_.insert(instructions_.end(), instructions.begin(), instructions.end());
 }
 
 void binwrite::basic_block_t::insert(binary_t& binary, const instruction_t& instruction, const size_type index, const bool inclusive)
 {
-	const rva_t rva = instruction_rva(index);
-
-	binary.insert(rva, instruction.bytes(), inclusive);
-
-	instructions_.insert(instructions_.begin() + index, instruction);
+	insert(binary, std::array{ instruction }, index, inclusive);
 }
 
 void binwrite::basic_block_t::insert(binary_t& binary, const std::span<const instruction_t> instructions, const size_type index, const bool inclusive)
 {
-	for (std::uint32_t i = 0; i < instructions.size(); i++)
-	{
-		const auto& instruction = instructions[i];
+	const rva_t rva = instruction_rva(index);
+	const auto bytes = group_instruction_bytes(instructions);
 
-		insert(binary, instruction, index + i, inclusive);
-	}
+	binary.insert(rva, bytes, inclusive);
+
+	const auto begin = instructions_.begin() + index;
+
+	instructions_.insert(begin, instructions.begin(), instructions.end());
 }
 
 void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, const size_type count, const bool affects_buffer)
@@ -156,14 +180,12 @@ void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, con
 
 	if (affects_buffer)
 	{
+		const auto last_instruction = first_instruction + count;
+
+		const rva_t::size_type size = group_instructions_size({ first_instruction, last_instruction });
 		const rva_t rva = instruction_rva(index);
 
-		for (size_type i = 0; i < count; i++)
-		{
-			const auto instruction = first_instruction + i;
-
-			binary.erase(rva, instruction->size());
-		}
+		binary.erase(rva, size);
 	}
 
 	instructions_.erase(first_instruction, first_instruction + count);

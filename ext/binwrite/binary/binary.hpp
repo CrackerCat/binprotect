@@ -20,9 +20,10 @@ namespace binwrite
 
 		section_t() = default;
 
-		explicit section_t(const rva_t rva, const size_type size, const bool code_section)
+		explicit section_t(const rva_t rva, const size_type size, const size_type padding, const bool code_section)
 				:	rva_(rva),
 					size_(size),
+					padding_(padding),
 					code_(code_section) { }
 
 		void process_disruption(rva_t disruption_rva, rva_t::size_type disruption_size);
@@ -38,9 +39,14 @@ namespace binwrite
 		[[nodiscard]] size_type size() const;
 		void set_size(size_type size);
 
+		[[nodiscard]] size_type padding() const;
+		void set_padding(size_type padding);
+		void remove_padding(size_type size);
+
 	protected:
 		rva_t rva_;
 		size_type size_;
+		size_type padding_;
 		bool code_;
 	};
 
@@ -70,7 +76,9 @@ namespace binwrite
 		virtual ~binary_t() = default;
 
 		void parse();
+
 		void disassemble();
+		void process_disassembly_queue();
 
 		void insert(rva_t rva, std::span<const std::uint8_t> data, bool inclusive = false);
 		void insert(rva_t rva, rva_t::size_type size, bool inclusive = false);
@@ -109,6 +117,8 @@ namespace binwrite
 		[[nodiscard]] std::shared_ptr<section_t> find_section(const std::string& name) const;
 		[[nodiscard]] std::shared_ptr<section_t> code_section() const;
 
+		[[nodiscard]] bool is_in_code_section(rva_t rva) const;
+
 		[[nodiscard]] std::vector<std::uint8_t>& buffer();
 		[[nodiscard]] const std::vector<std::uint8_t>& buffer() const;
 
@@ -127,24 +137,8 @@ namespace binwrite
 		void add_rva_ref(std::shared_ptr<rva_ref_t> ref);
 		void redirect_rva_ref(rva_t self, rva_t new_target);
 
-	protected:
-		virtual void find_data_rvas() = 0;
-		virtual void find_sections() = 0;
-		virtual void update_section_headers() = 0;
-		virtual void update_relocations() = 0;
-
-		void find_jump_tables(const basic_block_t& basic_block);
-		void assign_function_basic_blocks() const;
-
-		void update_section_rvas(rva_t disruption_rva, rva_t::size_type disruption_size);
-
-		bool is_in_code_section(rva_t rva);
-
 		[[nodiscard]] bool is_inside_disassembly_queue(rva_t rva) const;
 		void add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva);
-
-		std::shared_ptr<rva_t> add_relocation_rva(rva_t::value_type target);
-		std::shared_ptr<rva_t> add_relocation_rva(rva_t target);
 
 		template <class T>
 		std::shared_ptr<data_rva_ref_t> add_data_rva_ref(const T* const value)
@@ -159,11 +153,28 @@ namespace binwrite
 			return ref;
 		}
 
+	protected:
+		virtual void find_data_rvas() = 0;
+		virtual void find_sections() = 0;
+		virtual void update_section_headers() = 0;
+		virtual void update_relocations() = 0;
+
+		void find_jump_tables(const basic_block_t& basic_block);
+
+		void assign_function_basic_blocks() const;
+
+		void update_section_rvas(rva_t disruption_rva, rva_t::size_type disruption_size);
+
+		std::shared_ptr<rva_t> add_relocation_rva(rva_t::value_type target);
+		std::shared_ptr<rva_t> add_relocation_rva(rva_t target);
+
 		void add_llvm_jmp_table_ref(rva_t table_base);
 		void add_msvc_jmp_table_ref(rva_t table_base);
 
 		std::vector<std::uint8_t> buffer_;
 		std::unordered_map<std::string, std::shared_ptr<section_t>> sections_;
+
+		std::vector<std::shared_ptr<rva_t>> rva_blocks_;
 
 		std::vector<std::shared_ptr<rva_t>> rvas_;
 		std::vector<std::shared_ptr<rva_ref_t>> rva_refs_;
