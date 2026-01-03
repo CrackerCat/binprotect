@@ -35,13 +35,21 @@ void vm_context_t::exit_virtualized_state(binwrite::binary_t& binary)
 
 void vm_context_t::process_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly)
 {
-	const auto& operands = instruction_disassembly.visible_operands();
+	const auto& visible_operands = instruction_disassembly.visible_operands();
+	const auto& hidden_operands = instruction_disassembly.hidden_operands();
 
-	load_instruction(operands);
+	std::vector<binwrite::instruction_t> hidden_unload_instructions;
+	std::vector<hardware_register_t> hidden_registers;
 
-	handle_instruction(instruction_disassembly, operands);
+	process_hidden_operands(current_instruction_.load, hidden_unload_instructions, hidden_registers, hidden_operands);
 
-	unload_instruction(instruction_disassembly, operands);
+	const auto obfuscated_operands = load_instruction(visible_operands);
+
+	handle_instruction(instruction_disassembly, visible_operands, obfuscated_operands);
+
+	unload_instruction(instruction_disassembly, visible_operands, obfuscated_operands);
+
+	current_instruction_.unload.insert(current_instruction_.unload.end(), hidden_unload_instructions.begin(), hidden_unload_instructions.end());
 }
 
 void vm_context_t::compile_instruction(binwrite::binary_t& binary, const binwrite::rva_t rva)
@@ -130,12 +138,50 @@ void vm_context_t::free_instruction()
 	current_instruction_ = { };
 }
 
-void vm_context_t::load_instruction(const std::span<const binwrite::decoded_operand_t> operands)
+std::vector<std::unique_ptr<obfuscated_operand_t>> vm_context_t::load_instruction(const std::span<const binwrite::decoded_operand_t> operands)
 {
 	std::vector<binwrite::instruction_t>& instructions = current_instruction_.load;
+	std::vector<std::unique_ptr<obfuscated_operand_t>> obfuscated_operands(operands.size());
 
 	allocate_operands(instructions, operands.size());
 
+	save_instruction_operands(instructions, operands, obfuscated_operands);
+
+	return obfuscated_operands;
+}
+
+void vm_context_t::handle_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                      const std::span<const binwrite::decoded_operand_t> original_operands,
+                                      const std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands)
+{
+	std::vector<hardware_register_t> holding_registers(original_operands.size());
+	std::vector<binwrite::encoder_operand_t> redirected_operands(original_operands.size());
+
+	std::vector<binwrite::instruction_t>& instructions = current_instruction_.handler;
+
+	load_instruction_operands(instructions, instruction_disassembly, holding_registers, redirected_operands,
+	                          original_operands, obfuscated_operands);
+
+	recompile_instruction_operands(instructions, instruction_disassembly, redirected_operands);
+
+	save_instruction_results(instructions, obfuscated_operands, holding_registers);
+}
+
+void vm_context_t::unload_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                      const std::span<const binwrite::decoded_operand_t> operands,
+                                      const std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands)
+{
+	std::vector<binwrite::instruction_t>& instructions = current_instruction_.unload;
+
+	write_instruction_results(instructions, instruction_disassembly, operands, obfuscated_operands);
+
+	free_operands(instructions, operands.size());
+}
+
+void vm_context_t::save_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
+                                             const std::span<const binwrite::decoded_operand_t> operands,
+                                             const std::span<std::unique_ptr<obfuscated_operand_t>> obfuscated_operands)
+{
 	const offset_type operand_offset = calculate_operand_offset(operands.size());
 
 	for (size_type i = 0; i < operands.size(); i++)
@@ -145,42 +191,78 @@ void vm_context_t::load_instruction(const std::span<const binwrite::decoded_oper
 		const auto redirected_operand = redirect_operand(instructions, original_operand, operand_offset);
 
 		const hardware_register_t holder = random_hardware_register();
-		const std::uint16_t operand_width = original_operand.size();
 
-		const auto sized_holder = original_operand.is_reg() || original_operand.is_imm()
-			                          ? holder->qword
-			                          : holder->of_size(operand_width);
-
-		instructions.push_back(mov_instruction(redirected_operand, sized_holder).value());
+		std::unique_ptr<obfuscated_operand_t> obfuscated_operand = obfuscate_operand(instructions, redirected_operand, original_operand, holder);
 
 		write_operand(instructions, holder, i);
+
+		obfuscated_operands[i] = std::move(obfuscated_operand);
 	}
 }
 
-void vm_context_t::handle_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
-	const std::span<const binwrite::decoded_operand_t> original_operands)
+void vm_context_t::load_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
+                                             const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                             const std::span<hardware_register_t> holding_registers,
+                                             const std::span<binwrite::encoder_operand_t> redirected_operands,
+                                             const std::span<const binwrite::decoded_operand_t> original_operands,
+                                             const std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands)
 {
-	std::vector<hardware_register_t> holding_registers(original_operands.size());
-	std::vector<binwrite::encoder_operand_t> operands(original_operands.size());
-
-	std::vector<binwrite::instruction_t>& instructions = current_instruction_.handler;
-
-	for (size_type i = 0; i < operands.size(); i++)
+	for (size_type i = 0; i < original_operands.size(); i++)
 	{
 		const auto& original_operand = original_operands[i];
+		const auto& obfuscated_operand = obfuscated_operands[i];
 
 		const auto operand_width = static_cast<std::uint16_t>(instruction_disassembly.operand_width());
 
-		hardware_register_t operand_register = read_operand(instructions, i);
+		hardware_register_t operand_holder = read_operand(instructions, i);
 
-		operands[i] = operand_register->of_size(original_operand.is_imm() ? operand_width : original_operand.size());
-		holding_registers[i] = std::move(operand_register);
+		obfuscated_operand->decode_value(instructions, operand_holder);
+
+		redirected_operands[i] = operand_holder->of_size(original_operand.is_imm() ? operand_width : original_operand.size());
+		holding_registers[i] = std::move(operand_holder);
 	}
+}
 
+void vm_context_t::process_hidden_operands(std::vector<binwrite::instruction_t>& load_instructions,
+                                           std::vector<binwrite::instruction_t>& unload_instructions,
+                                           std::vector<hardware_register_t>& holding_registers,
+                                           const std::span<const binwrite::decoded_operand_t> hidden_operands)
+{
+	for (const auto& hidden_operand : hidden_operands)
+	{
+		if (hidden_operand.is_reg())
+		{
+			const auto reg = hidden_operand.reg().value;
+
+			if (reg.is_general_purpose())
+			{
+				const auto family = reg.family();
+
+				std::erase(free_registers_, family);
+
+				const auto redirected_operand = redirect_operand(current_instruction_.load, hidden_operand);
+
+				load_instructions.push_back(mov_instruction(redirected_operand, family.qword).value());
+
+				if (hidden_operand.is_write_action())
+				{
+					unload_instructions.push_back(mov_instruction(family.qword, redirected_operand).value());
+				}
+
+				holding_registers.emplace_back(shared_from_this(), family);
+			}
+		}
+	}
+}
+
+void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
+                                                  const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                                  const std::span<const binwrite::encoder_operand_t> operands)
+{
 	const auto mnemonic = instruction_disassembly.mnemonic();
 	const bool uses_flags = instruction_disassembly.reads_rflags() || instruction_disassembly.writes_rflags();
 
-	const offset_type operand_offset = calculate_operand_offset(original_operands.size());
+	const offset_type operand_offset = calculate_operand_offset(operands.size());
 
 	if (uses_flags)
 	{
@@ -193,40 +275,53 @@ void vm_context_t::handle_instruction(const binwrite::disassembled_instruction_t
 	{
 		save_flags(instructions, operand_offset);
 	}
+}
 
-	if (instruction_disassembly.writes_result())
+void vm_context_t::save_instruction_results(std::vector<binwrite::instruction_t>& instructions,
+                                             const std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands,
+                                             const std::span<const hardware_register_t> holding_registers)
+{
+	for (size_type i = 0; i < obfuscated_operands.size(); i++)
 	{
-		const hardware_register_t& result_holder = holding_registers[0];
+		const auto& obfuscated_operand = obfuscated_operands[i];
 
-		write_result_operand(instructions, result_holder);
+		if (obfuscated_operand->is_result())
+		{
+			const hardware_register_t& result_holder = holding_registers[i];
+
+			obfuscated_operand->encode_value(instructions, result_holder);
+
+			write_operand(instructions, result_holder, i);
+		}
 	}
 }
 
-void vm_context_t::unload_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
-	const std::span<const binwrite::decoded_operand_t> operands)
+void vm_context_t::write_instruction_results(std::vector<binwrite::instruction_t>& instructions,
+                                             const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                             const std::span<const binwrite::decoded_operand_t> operands,
+                                             const std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands)
 {
-	std::vector<binwrite::instruction_t>& instructions = current_instruction_.unload;
+	const offset_type operand_offset = calculate_operand_offset(operands.size());
 
-	const bool has_result = instruction_disassembly.writes_result();
-
-	hardware_register_t result_holder;
-
-	if (has_result)
+	for (size_type i = 0; i < operands.size(); i++)
 	{
-		result_holder = read_operand(instructions, 0);
-	}
+		const auto& obfuscated_operand = obfuscated_operands[i];
 
-	free_operands(instructions, operands.size());
+		if (obfuscated_operand->is_result())
+		{
+			const auto& original_destination = operands[i];
 
-	if (has_result)
-	{
-		const auto& original_destination = operands[0];
-		const auto& destination_redirected = redirect_operand(instructions, original_destination);
+			const hardware_register_t& result_holder = read_operand(instructions, i);
 
-		const auto operand_width = static_cast<std::uint16_t>(instruction_disassembly.operand_width());
-		const auto result_register = original_destination.is_reg() ? result_holder->qword : result_holder->of_size(operand_width);
+			obfuscated_operand->decode_value(instructions, result_holder);
 
-		instructions.push_back(mov_instruction(result_register, destination_redirected).value());
+			const auto& destination_redirected = redirect_operand(instructions, original_destination, operand_offset);
+
+			const auto operand_width = static_cast<std::uint16_t>(instruction_disassembly.operand_width());
+			const auto result_register = original_destination.is_reg() ? result_holder->qword : result_holder->of_size(operand_width);
+
+			instructions.push_back(mov_instruction(result_register, destination_redirected).value());
+		}
 	}
 }
 

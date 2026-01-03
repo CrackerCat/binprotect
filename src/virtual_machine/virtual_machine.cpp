@@ -37,7 +37,7 @@ void binprotect::vm::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t
 		const auto basic_block_index = i - erased;
 		const binwrite::rva_t instruction_rva = basic_block.instruction_rva(basic_block_index);
 
-		if (operands.empty() || disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() || binary.find_rva_ref(instruction_rva) || disassembled_instruction.is_jump() || disassembled_instruction.is_lea() || disassembled_instruction.is_nop())
+		if (disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() || binary.find_rva_ref(instruction_rva) || disassembled_instruction.is_jump() || disassembled_instruction.is_lea() || disassembled_instruction.is_nop())
 		{
 			context->exit_virtualized_state(binary);
 

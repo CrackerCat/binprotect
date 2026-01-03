@@ -192,19 +192,6 @@ bool binwrite::disassembled_instruction_t::writes_rflags() const
 	return false;
 }
 
-bool binwrite::disassembled_instruction_t::writes_result() const
-{
-	for (const auto& operand : visible_operands())
-	{
-		if (operand.is_write_action())
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 binwrite::disassembled_instruction_t::size_type binwrite::disassembled_instruction_t::size() const
 {
 	return decoded_instruction_.length;

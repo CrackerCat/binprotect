@@ -25,6 +25,7 @@ namespace binwrite
 		[[nodiscard]] register_family_t family() const;
 
 		[[nodiscard]] bool is_high_byte() const;
+		[[nodiscard]] bool is_general_purpose() const;
 
 		bool operator==(const register_t& other) const;
 		bool operator!=(const register_t& other) const;

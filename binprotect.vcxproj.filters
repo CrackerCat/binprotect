@@ -212,5 +212,8 @@
     <ClInclude Include="src\virtual_machine\vm_context.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\virtual_machine\operand.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

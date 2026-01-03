@@ -152,6 +152,13 @@ bool binwrite::register_t::is_high_byte() const
 		value_ == dh;
 }
 
+bool binwrite::register_t::is_general_purpose() const
+{
+	const register_family_t current_family = family();
+
+	return std::ranges::contains(register_family_t::general_purpose, current_family);
+}
+
 bool binwrite::register_t::operator==(const register_t& other) const
 {
 	return value_ == other.value_ || in_same_family(other);

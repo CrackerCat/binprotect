@@ -6,12 +6,12 @@
 
 #include <binwrite/instruction/instruction.hpp>
 #include <binwrite/assembler/assembler.hpp>
+#include <binwrite/binary/binary.hpp>
 #include <binwrite/math/random.hpp>
 
 #include "../assembler/assembler.hpp"
 #include "hardware_register.hpp"
-#include "binwrite/binary/binary.hpp"
-#include "binwrite/instruction/basic_block.hpp"
+#include "operand.hpp"
 
 struct vm_instruction_t
 {
@@ -70,13 +70,44 @@ protected:
 
 	void free_instruction();
 
-	void load_instruction(std::span<const binwrite::decoded_operand_t> operands);
+	std::vector<std::unique_ptr<obfuscated_operand_t>> load_instruction(std::span<const binwrite::decoded_operand_t> operands);
 
 	void handle_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
-	                        std::span<const binwrite::decoded_operand_t> original_operands);
+							std::span<const binwrite::decoded_operand_t> original_operands,
+							std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands);
 
 	void unload_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly,
-	                        std::span<const binwrite::decoded_operand_t> operands);
+	                        std::span<const binwrite::decoded_operand_t> operands,
+							std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands);
+
+	void save_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
+	                               std::span<const binwrite::decoded_operand_t> operands,
+	                               std::span<std::unique_ptr<obfuscated_operand_t>> obfuscated_operands);
+
+	void load_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
+	                               const binwrite::disassembled_instruction_t& instruction_disassembly,
+	                               std::span<hardware_register_t> holding_registers,
+	                               std::span<binwrite::encoder_operand_t> redirected_operands,
+	                               std::span<const binwrite::decoded_operand_t> original_operands,
+	                               std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands);
+
+	void process_hidden_operands(std::vector<binwrite::instruction_t>& load_instructions,
+	                             std::vector<binwrite::instruction_t>& unload_instructions,
+	                             std::vector<hardware_register_t>& holding_registers,
+	                             std::span<const binwrite::decoded_operand_t> hidden_operands);
+
+	void recompile_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
+	                                    const binwrite::disassembled_instruction_t& instruction_disassembly,
+	                                    std::span<const binwrite::encoder_operand_t> operands);
+
+	static void save_instruction_results(std::vector<binwrite::instruction_t>& instructions,
+	                                      std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands,
+	                                      std::span<const hardware_register_t> holding_registers);
+
+	void write_instruction_results(std::vector<binwrite::instruction_t>& instructions,
+	                               const binwrite::disassembled_instruction_t& instruction_disassembly,
+	                               std::span<const binwrite::decoded_operand_t> operands,
+	                               std::span<const std::unique_ptr<obfuscated_operand_t>> obfuscated_operands);
 
 	[[nodiscard]] static offset_type calculate_operand_offset(size_type index);
 
@@ -103,11 +134,6 @@ protected:
 		const binwrite::encoder_operand_t stack_memory = encode_stack_mem_operand(static_cast<std::int64_t>(operand_size * index), operand_size);
 
 		instructions.push_back(mov_instruction(holder->qword, stack_memory).value());
-	}
-
-	static void write_result_operand(std::vector<binwrite::instruction_t>& instructions, const hardware_register_t& holder)
-	{
-		write_operand(instructions, holder, 0);
 	}
 
 	static void allocate_operands(std::vector<binwrite::instruction_t>& instructions, const size_type count)

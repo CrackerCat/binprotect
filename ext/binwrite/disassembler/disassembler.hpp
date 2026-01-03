@@ -99,7 +99,6 @@ namespace binwrite
 
 		[[nodiscard]] bool reads_rflags() const;
 		[[nodiscard]] bool writes_rflags() const;
-		[[nodiscard]] bool writes_result() const;
 
 		[[nodiscard]] size_type size() const;
 		[[nodiscard]] size_type operand_width() const;
