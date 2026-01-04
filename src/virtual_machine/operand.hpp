@@ -20,7 +20,7 @@ public:
 	virtual void encode_value(std::vector<binwrite::instruction_t>& instructions, const hardware_register_t& value_holder) = 0;
 	virtual void decode_value(std::vector<binwrite::instruction_t>& instructions, const hardware_register_t& value_holder) = 0;
 
-	virtual bool can_evaluate_imm() const
+	[[nodiscard]] virtual bool can_evaluate_imm() const
 	{
 		return true;
 	}
@@ -124,8 +124,6 @@ static void encode_obfuscated_operand(std::vector<binwrite::instruction_t>& inst
 	const auto sized_holder = original_operand.is_reg() || original_operand.is_imm()
 		? holder->qword
 		: holder->of_size(operand_width);
-
-	instructions.push_back(mov_instruction(redirected_operand, sized_holder).value());
 
 	if (redirected_operand.is_imm() && obfuscated_operand.can_evaluate_imm())
 	{

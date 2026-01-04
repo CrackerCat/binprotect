@@ -19,7 +19,9 @@ static void insert_call_to_block(binwrite::binary_t& binary,
 	binary.add_rva_ref(std::make_shared<binwrite::code_rva_ref_t>(target_block.rva(), instruction_rva, instruction.size()));
 }
 
-void binprotect::vm::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block, const binwrite::rva_t rva)
+void binprotect::vm::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block,
+                             const binwrite::rva_t rva,
+                             std::vector<std::shared_ptr<binwrite::basic_block_t>>& virtual_machine_blocks)
 {
 	const auto context = std::make_shared<vm_context_t>(binwrite::register_family_t::general_purpose);
 
@@ -32,12 +34,13 @@ void binprotect::vm::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t
 	{
 		const auto& instruction = instructions[i];
 		const auto& disassembled_instruction = instruction.disassemble();
-		const auto& operands = disassembled_instruction.visible_operands();
 
 		const auto basic_block_index = i - erased;
 		const binwrite::rva_t instruction_rva = basic_block.instruction_rva(basic_block_index);
 
-		if (disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() || binary.find_rva_ref(instruction_rva) || disassembled_instruction.is_jump() || disassembled_instruction.is_lea() || disassembled_instruction.is_nop())
+		if (disassembled_instruction.rip_relative() || disassembled_instruction.writes_stack_pointer() ||
+			binary.find_rva_ref(instruction_rva) || disassembled_instruction.is_jump() ||
+			disassembled_instruction.is_lea() || disassembled_instruction.is_nop())
 		{
 			context->exit_virtualized_state(binary);
 
@@ -51,16 +54,18 @@ void binprotect::vm::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t
 			context->process_instruction(disassembled_instruction);
 			context->compile_instruction(binary, rva);
 
-			basic_block.erase(binary, basic_block_index);
-
 			if (requires_entry)
 			{
 				const auto entry_block = context->entry_block();
 
 				insert_call_to_block(binary, basic_block, basic_block_index, *entry_block);
+
+				basic_block.erase(binary, basic_block_index + 1);
 			}
 			else
 			{
+				basic_block.erase(binary, basic_block_index);
+
 				erased++;
 			}
 		}
@@ -73,4 +78,6 @@ void binprotect::vm::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t
 	}
 
 	context->exit_virtualized_state(binary);
+
+	virtual_machine_blocks.insert_range(virtual_machine_blocks.end(), context->basic_blocks());
 }

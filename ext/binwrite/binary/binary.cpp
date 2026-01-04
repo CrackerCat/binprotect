@@ -26,7 +26,7 @@ void binwrite::section_t::insert(binary_t& binary, const rva_t section_offset, c
 
 	const rva_t insertion_rva(rva_.value() + section_offset.value());
 
-	buffer.insert(buffer.begin() + insertion_rva.value(), data.begin(), data.end());
+	buffer.insert_range(buffer.begin() + insertion_rva.value(), data);
 
 	binary.update_rvas(insertion_rva, static_cast<rva_t::size_type>(data.size()), true, false);
 
@@ -94,7 +94,7 @@ void binwrite::binary_t::parse()
 
 void binwrite::binary_t::insert(const rva_t rva, const std::span<const std::uint8_t> data, const bool inclusive)
 {
-	buffer_.insert(buffer_.begin() + rva.value(), data.begin(), data.end());
+	buffer_.insert_range(buffer_.begin() + rva.value(), data);
 
 	update_rvas(rva, static_cast<rva_t::size_type>(data.size()), inclusive);
 }
@@ -139,24 +139,16 @@ std::shared_ptr<binwrite::function_t> binwrite::binary_t::create_function(const 
 
 std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::create_basic_block(const rva_t rva, const std::span<const instruction_t> instructions)
 {
-	rva_t instruction_rva = rva;
+	const auto bytes = group_instruction_bytes(instructions);
 
-	for (const auto& instruction : instructions)
-	{
-		insert(instruction_rva, instruction.bytes(), true);
-
-		instruction_rva.set_value(instruction_rva.value() + instruction.size());
-	}
+	insert(rva, bytes, true);
 
 	const auto added_rva = add_rva(rva);
 	const auto basic_block = std::make_shared<basic_block_t>(added_rva);
 
 	basic_blocks_.push_back(basic_block);
 
-	for (const auto& instruction : instructions | std::views::reverse)
-	{
-		basic_block->push(*this, instruction, true);
-	}
+	basic_block->push(*this, instructions, true);
 
 	return basic_block;
 }
@@ -230,10 +222,7 @@ std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::split_basic_block(c
 
 	auto new_basic_block = std::make_shared<basic_block_t>(offset_rva);
 
-	for (const auto& instruction : new_block_instructions)
-	{
-		new_basic_block->push(*this, instruction, true);
-	}
+	new_basic_block->push(*this, new_block_instructions, true);
 
 	basic_blocks_.push_back(new_basic_block);
 

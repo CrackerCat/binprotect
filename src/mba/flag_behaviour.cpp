@@ -116,14 +116,14 @@ std::deque<binprotect::mba::flag_dependant_t> binprotect::mba::find_flag_depende
 		const auto& instruction = instructions[i];
 		const auto& disassembled_instruction = instruction.disassemble();
 
-		if (disassembled_instruction.writes_rflags())
+		if (disassembled_instruction.writes_flags())
 		{
 			closest_writer_index = i;
 		}
 
 		const bool is_last_instruction = i == instructions.size() - 1;
 
-		if ((is_last_instruction || disassembled_instruction.reads_rflags()) && closest_writer_index != -1)
+		if ((is_last_instruction || disassembled_instruction.reads_flags()) && closest_writer_index != -1)
 		{
 			flag_dependants.emplace_front(i, static_cast<std::uint32_t>(closest_writer_index));
 

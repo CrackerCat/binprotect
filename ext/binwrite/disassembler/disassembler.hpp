@@ -97,8 +97,10 @@ namespace binwrite
 		[[nodiscard]] bool rip_relative() const;
 		[[nodiscard]] bool rsp_relative() const;
 
-		[[nodiscard]] bool reads_rflags() const;
-		[[nodiscard]] bool writes_rflags() const;
+		[[nodiscard]] bool reads_flags() const;
+		[[nodiscard]] bool writes_flags() const;
+
+		[[nodiscard]] bool writes_stack_pointer() const;
 
 		[[nodiscard]] size_type size() const;
 		[[nodiscard]] size_type operand_width() const;

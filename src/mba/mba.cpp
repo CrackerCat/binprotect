@@ -128,7 +128,6 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 		const std::uint32_t basic_block_index = i + added;
 
-		// todo: make more efficient
 		basic_block.insert(binary, obfuscated_instructions, basic_block_index);
 		basic_block.erase(binary, basic_block_index + static_cast<std::uint32_t>(obfuscated_instructions.size()));
 

@@ -225,7 +225,7 @@ void binwrite::portable_executable_t::update_relocations()
 
 		const auto serialized_block_descriptor = serialize_bytes(&block_descriptor);
 
-		new_directory.insert(new_directory.end(), serialized_block_descriptor.begin(), serialized_block_descriptor.end());
+		new_directory.insert_range(new_directory.end(), serialized_block_descriptor);
 
 		const bool needs_padding = (entry_descriptors.size() % 2) != 0;
 
@@ -240,7 +240,7 @@ void binwrite::portable_executable_t::update_relocations()
 		{
 			const auto serialized_entry_descriptor = serialize_bytes(&entry_descriptor);
 
-			new_directory.insert(new_directory.end(), serialized_entry_descriptor.begin(), serialized_entry_descriptor.end());
+			new_directory.insert_range(new_directory.end(), serialized_entry_descriptor);
 		}
 	}
 

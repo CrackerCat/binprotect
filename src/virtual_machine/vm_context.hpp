@@ -50,6 +50,15 @@ public:
 	[[nodiscard]] hardware_register_t random_hardware_register();
 	void free_hardware_register(const hardware_register_t& hardware_register);
 
+	[[nodiscard]] size_type initial_stack_size() const
+	{
+		constexpr size_type special_register_count = 2; // rflags, return address
+
+		const size_type total_register_count = stack_registers_.size() + special_register_count;
+
+		return total_register_count * stack_register_size;
+	}
+
 	[[nodiscard]] bool in_virtualized_state() const
 	{
 		return virtualized_state_;
@@ -58,6 +67,16 @@ public:
 	[[nodiscard]] std::shared_ptr<binwrite::basic_block_t> entry_block() const
 	{
 		return entry_block_;
+	}
+
+	[[nodiscard]] std::span<std::shared_ptr<binwrite::basic_block_t>> basic_blocks()
+	{
+		return basic_blocks_;
+	}
+
+	[[nodiscard]] std::span<const std::shared_ptr<binwrite::basic_block_t>> basic_blocks() const
+	{
+		return basic_blocks_;
 	}
 
 protected:
@@ -138,6 +157,11 @@ protected:
 
 	static void allocate_operands(std::vector<binwrite::instruction_t>& instructions, const size_type count)
 	{
+		if (!count)
+		{
+			return;
+		}
+
 		const binwrite::encoder_operand_t stack_displacement = encode_unsigned_imm_operand(operand_size * count);
 
 		instructions.push_back(sub_instruction(stack_displacement, binwrite::register_t::rsp).value());
@@ -145,13 +169,18 @@ protected:
 
 	static void free_operands(std::vector<binwrite::instruction_t>& instructions, const size_type count)
 	{
+		if (!count)
+		{
+			return;
+		}
+
 		const binwrite::encoder_operand_t stack_displacement = encode_unsigned_imm_operand(operand_size * count);
 
 		instructions.push_back(add_instruction(stack_displacement, binwrite::register_t::rsp).value());
 	}
 
 	static void push_register(std::vector<binwrite::instruction_t>& instructions,
-	                          const binwrite::register_family_t register_family)
+		const binwrite::register_family_t register_family)
 	{
 		if (register_family == binwrite::register_family_t::flags)
 		{
@@ -216,9 +245,10 @@ protected:
 	std::shared_ptr<binwrite::basic_block_t> previous_block_ = { };
 	std::shared_ptr<binwrite::basic_block_t> entry_block_ = { };
 
+	std::vector<std::shared_ptr<binwrite::basic_block_t>> basic_blocks_ = { };
+
 	std::vector<binwrite::register_family_t> stack_registers_ = { };
 	std::deque<binwrite::register_family_t> free_registers_ = { };
 
 	bool virtualized_state_ = false;
 };
-

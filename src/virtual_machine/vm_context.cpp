@@ -8,6 +8,8 @@ void vm_context_t::enter_virtualized_state(binwrite::binary_t& binary, const bin
 
 	entry_block_ = previous_block_ = binary.create_basic_block(rva, instructions);
 	virtualized_state_ = true;
+
+	basic_blocks_.push_back(entry_block_);
 }
 
 void vm_context_t::exit_virtualized_state(binwrite::binary_t& binary)
@@ -49,7 +51,7 @@ void vm_context_t::process_instruction(const binwrite::disassembled_instruction_
 
 	unload_instruction(instruction_disassembly, visible_operands, obfuscated_operands);
 
-	current_instruction_.unload.insert(current_instruction_.unload.end(), hidden_unload_instructions.begin(), hidden_unload_instructions.end());
+	current_instruction_.unload.insert_range(current_instruction_.unload.end(), hidden_unload_instructions);
 }
 
 void vm_context_t::compile_instruction(binwrite::binary_t& binary, const binwrite::rva_t rva)
@@ -66,6 +68,9 @@ void vm_context_t::compile_instruction(binwrite::binary_t& binary, const binwrit
 	push_jump_to_block(binary, previous_block_, handler_block);
 
 	previous_block_ = binary.create_basic_block(rva, current_instruction_.unload);
+
+	basic_blocks_.push_back(previous_block_);
+	basic_blocks_.push_back(handler_block);
 
 	push_jump_to_block(binary, handler_block, previous_block_);
 
@@ -260,7 +265,7 @@ void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruct
                                                   const std::span<const binwrite::encoder_operand_t> operands)
 {
 	const auto mnemonic = instruction_disassembly.mnemonic();
-	const bool uses_flags = instruction_disassembly.reads_rflags() || instruction_disassembly.writes_rflags();
+	const bool uses_flags = instruction_disassembly.reads_flags() || instruction_disassembly.writes_flags();
 
 	const offset_type operand_offset = calculate_operand_offset(operands.size());
 
@@ -338,6 +343,13 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 		const auto reg = operand.reg().value;
 		const auto family = reg.family();
 
+		if (family == binwrite::register_family_t::sp)
+		{
+			const std::int64_t displacement = static_cast<std::int64_t>(stack_offset + initial_stack_size());
+
+			return encode_stack_mem_operand(displacement, reg.width());
+		}
+
 		return register_to_stack(family.qword, 64, stack_offset);
 	}
 
@@ -345,6 +357,7 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 	{
 		const auto mem = operand.mem();
 		const auto base_width = mem.base.width();
+		const auto base_family = mem.base.family();
 
 		const binwrite::encoder_operand_t base = register_to_stack(mem.base, base_width, stack_offset);
 		const auto base_holder = random_hardware_register();
@@ -367,7 +380,14 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 			instructions.push_back(mov_instruction(index, index_register).value());
 		}
 
-		return encode_mem_operand(base_register, mem.displacement, mem.size, index_register, mem.scale);
+		std::int64_t displacement = mem.displacement;
+
+		if (base_family == binwrite::register_family_t::sp)
+		{
+			displacement += static_cast<std::int64_t>(stack_offset + initial_stack_size());
+		}
+
+		return encode_mem_operand(base_register, displacement, mem.size, index_register, mem.scale);
 	}
 
 	return operand;

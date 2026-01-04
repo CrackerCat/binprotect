@@ -4,6 +4,8 @@
 #include "../rva/rva.hpp"
 #include "instruction.hpp"
 
+std::vector<std::uint8_t> group_instruction_bytes(std::span<const binwrite::instruction_t> instructions);
+
 namespace binwrite
 {
 	class binary_t;

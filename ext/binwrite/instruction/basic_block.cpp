@@ -111,7 +111,7 @@ void binwrite::basic_block_t::move_entire(binary_t& binary, rva_t destination) c
 	*rva_ = destination;
 }
 
-static std::vector<std::uint8_t> group_instruction_bytes(const std::span<const binwrite::instruction_t> instructions)
+std::vector<std::uint8_t> group_instruction_bytes(const std::span<const binwrite::instruction_t> instructions)
 {
 	std::vector<std::uint8_t> bytes;
 
@@ -119,7 +119,7 @@ static std::vector<std::uint8_t> group_instruction_bytes(const std::span<const b
 	{
 		const auto current_bytes = instruction.bytes();
 
-		bytes.insert(bytes.end(), current_bytes.begin(), current_bytes.end());
+		bytes.insert_range(bytes.end(), current_bytes);
 	}
 
 	return bytes;
@@ -131,9 +131,7 @@ static binwrite::rva_t::size_type group_instructions_size(const std::span<const 
 
 	for (const auto& instruction : instructions)
 	{
-		const auto current_bytes = instruction.bytes();
-
-		size += static_cast<binwrite::rva_t::size_type>(current_bytes.size());
+		size += static_cast<binwrite::rva_t::size_type>(instruction.size());
 	}
 
 	return size;
@@ -154,7 +152,7 @@ void binwrite::basic_block_t::push(binary_t& binary, const std::span<const instr
 		binary.insert(rva, bytes, inclusive);
 	}
 
-	instructions_.insert(instructions_.end(), instructions.begin(), instructions.end());
+	instructions_.insert_range(instructions_.end(), instructions);
 }
 
 void binwrite::basic_block_t::insert(binary_t& binary, const instruction_t& instruction, const size_type index, const bool inclusive)
@@ -171,7 +169,7 @@ void binwrite::basic_block_t::insert(binary_t& binary, const std::span<const ins
 
 	const auto begin = instructions_.begin() + index;
 
-	instructions_.insert(begin, instructions.begin(), instructions.end());
+	instructions_.insert_range(begin, instructions);
 }
 
 void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, const size_type count, const bool affects_buffer)

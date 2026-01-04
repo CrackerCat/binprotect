@@ -8,6 +8,7 @@
 #include <string>
 #include <random>
 
+#include "binwrite/math/random.hpp"
 #include "virtual_machine/virtual_machine.hpp"
 #include "control_flow/control_flow_flattening.hpp"
 #include "control_flow/control_flow_obfuscation.hpp"
@@ -73,6 +74,22 @@ void fix_security_directory(binwrite::portable_executable_t& pe)
 	}
 }
 
+void mutate_basic_block(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block)
+{
+	binprotect::linear_substitution::do_pass(binary, basic_block);
+
+	constexpr std::uint32_t mba_passes = 1;
+
+	bool is_first_pass = true;
+
+	for (std::uint32_t j = 0; j < mba_passes; j++)
+	{
+		binprotect::mba::do_pass(binary, basic_block, is_first_pass);
+
+		is_first_pass = false;
+	}
+}
+
 std::int32_t main()
 {
 	std::vector<std::uint8_t> buffer = read_file_from_disk("input.exe");
@@ -99,6 +116,8 @@ std::int32_t main()
 
 	pe.disassemble();
 
+	const auto code_section = pe.code_section();
+
 	for (const auto& function : pe.functions())
 	{
 		binprotect::control_flow::flattening::do_pass(pe, *function);
@@ -107,26 +126,32 @@ std::int32_t main()
 	const auto original_basic_blocks = pe.basic_blocks();
 	const std::vector basic_blocks(original_basic_blocks.begin(), original_basic_blocks.end());
 
-	const auto code_section = pe.code_section();
+	std::vector<std::shared_ptr<binwrite::basic_block_t>> virtual_machine_blocks;
 
-	for (const auto& basic_block : basic_blocks)
+	for (std::uint64_t i = 0; i < basic_blocks.size(); i++)
 	{
-		binprotect::linear_substitution::do_pass(pe, *basic_block);
+		const auto& basic_block = basic_blocks[i];
 
-		constexpr std::uint32_t mba_passes = 4;
+		mutate_basic_block(pe, *basic_block);
 
-		bool is_first_pass = true;
-
-		for (std::uint32_t i = 0; i < mba_passes; i++)
-		{
-			binprotect::mba::do_pass(pe, *basic_block, is_first_pass);
-
-			is_first_pass = false;
-		}
-
-		binprotect::vm::do_pass(pe, *basic_block, code_section->rva());
+		binprotect::vm::do_pass(pe, *basic_block, code_section->rva(), virtual_machine_blocks);
 
 		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
+
+		spdlog::info("obfuscated {}/{} blocks", i + 1, basic_blocks.size());
+	}
+
+	binwrite::math::shuffle<std::shared_ptr<binwrite::basic_block_t>>(virtual_machine_blocks);
+
+	for (std::uint64_t i = 0; i < virtual_machine_blocks.size(); i++)
+	{
+		const auto& basic_block = virtual_machine_blocks[i];
+
+		basic_block->move_entire(pe, code_section->rva());
+
+		mutate_basic_block(pe, *basic_block);
+
+		spdlog::info("obfuscated {}/{} virtual machine blocks", i + 1, virtual_machine_blocks.size());
 	}
 
 	pe.update_rva_references();

@@ -112,14 +112,9 @@ bool binwrite::disassembled_instruction_t::relative() const
 
 bool binwrite::disassembled_instruction_t::rip_relative() const
 {
-	if (!relative())
-	{
-		return false;
-	}
-
 	for (const auto& operand : operands_)
 	{
-		if (operand.is_imm() || (operand.is_mem() && operand.mem().base == register_t::rip))
+		if ((operand.is_reg() && operand.reg().value == register_t::rip) || (operand.is_mem() && operand.mem().base == register_t::rip))
 		{
 			return true;
 		}
@@ -156,15 +151,15 @@ bool binwrite::disassembled_instruction_t::rsp_relative() const
 	return false;
 }
 
-bool binwrite::disassembled_instruction_t::reads_rflags() const
+bool binwrite::disassembled_instruction_t::reads_flags() const
 {
 	for (const auto& operand : hidden_operands())
 	{
-		if (operand.is_reg())
+		if (operand.is_reg() && operand.is_read_action())
 		{
 			const auto reg = operand.reg();
 
-			if (reg.value == register_t::rflags && operand.is_read_action())
+			if (reg.value == register_t::rflags)
 			{
 				return true;
 			}
@@ -174,15 +169,34 @@ bool binwrite::disassembled_instruction_t::reads_rflags() const
 	return false;
 }
 
-bool binwrite::disassembled_instruction_t::writes_rflags() const
+bool binwrite::disassembled_instruction_t::writes_flags() const
 {
 	for (const auto& operand : hidden_operands())
 	{
-		if (operand.is_reg())
+		if (operand.is_reg() && operand.is_write_action())
 		{
 			const auto reg = operand.reg();
 
-			if (reg.value == register_t::rflags && operand.is_write_action())
+			if (reg.value == register_t::rflags)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool binwrite::disassembled_instruction_t::writes_stack_pointer() const
+{
+	for (const auto& operand : operands_)
+	{
+		if (operand.is_reg() && operand.is_write_action())
+		{
+			const auto reg = operand.reg();
+			const auto family = reg.value.family();
+
+			if (family == register_family_t::sp)
 			{
 				return true;
 			}

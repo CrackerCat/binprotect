@@ -163,6 +163,7 @@ namespace binwrite
 
 		static const register_family_t flags;
 
-		static const std::array<register_family_t, 14> general_purpose;
+		static const std::array<register_family_t, 15> general_purpose;
+		static const std::array<register_family_t, 16> families;
 	};
 }
