@@ -102,6 +102,8 @@ namespace binwrite
 
 		[[nodiscard]] bool writes_stack_pointer() const;
 
+		[[nodiscard]] bool has_lock() const;
+
 		[[nodiscard]] size_type size() const;
 		[[nodiscard]] size_type operand_width() const;
 

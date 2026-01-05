@@ -114,6 +114,8 @@ namespace binwrite
 		[[nodiscard]] std::span<encoder_operand_t> operands();
 		[[nodiscard]] std::span<const encoder_operand_t> operands() const;
 
+		void set_operands(std::span<const encoder_operand_t> new_operands);
+
 		[[nodiscard]] std::optional<instruction_t> compile() const;
 		[[nodiscard]] std::optional<std::pair<bytes_t, size_type>> compile_bytes() const;
 		[[nodiscard]] std::optional<size_type> predict_size() const;

@@ -88,6 +88,13 @@ std::span<const binwrite::encoder_operand_t> binwrite::assembler_instruction_t::
 	return { start, end };
 }
 
+void binwrite::assembler_instruction_t::set_operands(const std::span<const encoder_operand_t> new_operands)
+{
+	std::memcpy(request_.operands, new_operands.data(), sizeof(encoder_operand_t) * new_operands.size());
+
+	request_.operand_count = static_cast<std::uint8_t>(new_operands.size());
+}
+
 std::optional<binwrite::instruction_t> binwrite::assembler_instruction_t::compile() const
 {
 	const auto compiled_bytes = compile_bytes();

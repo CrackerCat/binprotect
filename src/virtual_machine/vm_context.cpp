@@ -239,24 +239,49 @@ void vm_context_t::process_hidden_operands(std::vector<binwrite::instruction_t>&
 		{
 			const auto reg = hidden_operand.reg().value;
 
-			if (reg.is_general_purpose())
+			process_hidden_register(load_instructions, unload_instructions, holding_registers, hidden_operand, reg);
+		}
+		else if (hidden_operand.is_mem())
+		{
+			const auto mem = hidden_operand.mem();
+			const auto base = mem.base;
+			const auto index = mem.index;
+
+			if (base != binwrite::register_t::none)
 			{
-				const auto family = reg.family();
+				process_hidden_register(load_instructions, unload_instructions, holding_registers, hidden_operand, base);
+			}
 
-				std::erase(free_registers_, family);
-
-				const auto redirected_operand = redirect_operand(current_instruction_.load, hidden_operand);
-
-				load_instructions.push_back(mov_instruction(redirected_operand, family.qword).value());
-
-				if (hidden_operand.is_write_action())
-				{
-					unload_instructions.push_back(mov_instruction(family.qword, redirected_operand).value());
-				}
-
-				holding_registers.emplace_back(shared_from_this(), family);
+			if (index != binwrite::register_t::none && index != base)
+			{
+				process_hidden_register(load_instructions, unload_instructions, holding_registers, hidden_operand, index);
 			}
 		}
+	}
+}
+
+void vm_context_t::process_hidden_register(std::vector<binwrite::instruction_t>& load_instructions,
+                                           std::vector<binwrite::instruction_t>& unload_instructions,
+                                           std::vector<hardware_register_t>& holding_registers,
+                                           const binwrite::decoded_operand_t& hidden_operand,
+                                           const binwrite::register_t reg)
+{
+	if (reg.is_general_purpose())
+	{
+		const auto family = reg.family();
+
+		std::erase(free_registers_, family);
+
+		const auto redirected_operand = redirect_operand(load_instructions, reg);
+
+		load_instructions.push_back(mov_instruction(redirected_operand, family.qword).value());
+
+		if (hidden_operand.is_write_action())
+		{
+			unload_instructions.push_back(mov_instruction(family.qword, redirected_operand).value());
+		}
+
+		holding_registers.emplace_back(shared_from_this(), family);
 	}
 }
 
@@ -264,7 +289,6 @@ void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruct
                                                   const binwrite::disassembled_instruction_t& instruction_disassembly,
                                                   const std::span<const binwrite::encoder_operand_t> operands)
 {
-	const auto mnemonic = instruction_disassembly.mnemonic();
 	const bool uses_flags = instruction_disassembly.reads_flags() || instruction_disassembly.writes_flags();
 
 	const offset_type operand_offset = calculate_operand_offset(operands.size());
@@ -274,7 +298,11 @@ void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruct
 		load_flags(instructions, operand_offset);
 	}
 
-	instructions.push_back(compile_assembler_instruction(mnemonic, operands).value());
+	binwrite::assembler_instruction_t reassembled_instruction = make_assembler_instruction(instruction_disassembly).value();
+
+	reassembled_instruction.set_operands(operands);
+
+	instructions.push_back(reassembled_instruction.compile().value());
 
 	if (uses_flags)
 	{
@@ -357,23 +385,33 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 	{
 		const auto mem = operand.mem();
 		const auto base_width = mem.base.width();
-		const auto base_family = mem.base.family();
 
-		const binwrite::encoder_operand_t base = register_to_stack(mem.base, base_width, stack_offset);
-		const auto base_holder = random_hardware_register();
+		binwrite::register_t base_register = binwrite::register_t::none;
+		binwrite::register_family_t base_family = binwrite::register_family_t::none;
 
-		const binwrite::register_t base_register = base_holder->of_size(base_width);
+		hardware_register_t base_holder;
 
-		instructions.push_back(mov_instruction(base, base_register).value());
+		if (mem.base != binwrite::register_t::none)
+		{
+			const binwrite::encoder_operand_t base = register_to_stack(mem.base, base_width, stack_offset);
+			base_holder = random_hardware_register();
+
+			base_register = base_holder->of_size(base_width);
+			base_family = mem.base.family();
+
+			instructions.push_back(mov_instruction(base, base_register).value());
+		}
 
 		binwrite::register_t index_register = binwrite::register_t::none;
+
+		hardware_register_t index_holder;
 
 		if (mem.index != binwrite::register_t::none)
 		{
 			const auto index_width = mem.index.width();
 
 			const binwrite::encoder_operand_t index = register_to_stack(mem.index, index_width, stack_offset);
-			const auto index_holder = random_hardware_register();
+			index_holder = random_hardware_register();
 
 			index_register = index_holder->of_size(index_width);
 
@@ -386,6 +424,10 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 		{
 			displacement += static_cast<std::int64_t>(stack_offset + initial_stack_size());
 		}
+
+		// can't use destructor as compiler optimises the variables to free too early
+		base_holder.free_self();
+		index_holder.free_self();
 
 		return encode_mem_operand(base_register, displacement, mem.size, index_register, mem.scale);
 	}

@@ -206,6 +206,11 @@ bool binwrite::disassembled_instruction_t::writes_stack_pointer() const
 	return false;
 }
 
+bool binwrite::disassembled_instruction_t::has_lock() const
+{
+	return decoded_instruction_.attributes & ZYDIS_ATTRIB_HAS_LOCK;
+}
+
 binwrite::disassembled_instruction_t::size_type binwrite::disassembled_instruction_t::size() const
 {
 	return decoded_instruction_.length;

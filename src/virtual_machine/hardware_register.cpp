@@ -3,9 +3,16 @@
 
 hardware_register_t::~hardware_register_t()
 {
+	free_self();
+}
+
+void hardware_register_t::free_self()
+{
 	if (vm_context_ && value_ != value_type::none)
 	{
 		vm_context_->free_hardware_register(*this);
+
+		value_ = value_type::none;
 	}
 }
 

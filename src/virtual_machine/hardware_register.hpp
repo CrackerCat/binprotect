@@ -21,6 +21,8 @@ public:
 	hardware_register_t(hardware_register_t&&) = default;
 	hardware_register_t& operator=(hardware_register_t&&) = default;
 
+	void free_self();
+
 	[[nodiscard]] binwrite::register_t of_size(size_type size) const;
 	[[nodiscard]] binwrite::register_t of_size(const binwrite::decoded_operand_t& operand) const;
 

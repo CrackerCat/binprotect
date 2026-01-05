@@ -115,6 +115,12 @@ protected:
 	                             std::vector<hardware_register_t>& holding_registers,
 	                             std::span<const binwrite::decoded_operand_t> hidden_operands);
 
+	void process_hidden_register(std::vector<binwrite::instruction_t>& load_instructions,
+	                             std::vector<binwrite::instruction_t>& unload_instructions,
+	                             std::vector<hardware_register_t>& holding_registers,
+	                             const binwrite::decoded_operand_t& hidden_operand,
+	                             binwrite::register_t reg);
+
 	void recompile_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
 	                                    const binwrite::disassembled_instruction_t& instruction_disassembly,
 	                                    std::span<const binwrite::encoder_operand_t> operands);
