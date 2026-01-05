@@ -193,9 +193,9 @@ void vm_context_t::save_instruction_operands(std::vector<binwrite::instruction_t
 	{
 		const auto& original_operand = operands[i];
 
-		const auto redirected_operand = redirect_operand(instructions, original_operand, operand_offset);
-
 		const hardware_register_t holder = random_hardware_register();
+
+		const auto redirected_operand = redirect_operand(instructions, original_operand, operand_offset);
 
 		std::unique_ptr<obfuscated_operand_t> obfuscated_operand = obfuscate_operand(instructions, redirected_operand, original_operand, holder);
 
@@ -373,9 +373,17 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 
 		if (family == binwrite::register_family_t::sp)
 		{
+			const std::uint16_t register_width = reg.width();
+
 			const std::int64_t displacement = static_cast<std::int64_t>(stack_offset + initial_stack_size());
 
-			return encode_stack_mem_operand(displacement, reg.width());
+			const hardware_register_t holder = random_hardware_register();
+			const auto sized_holder = holder->of_size(register_width);
+
+			instructions.push_back(mov_instruction(reg, sized_holder).value());
+			instructions.push_back(add_instruction(encode_signed_imm_operand(displacement), sized_holder).value());
+
+			return sized_holder;//encode_stack_mem_operand(displacement, reg.width());
 		}
 
 		return register_to_stack(family.qword, 64, stack_offset);
