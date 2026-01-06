@@ -73,11 +73,6 @@ std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::u
 
 std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction)
 {
-	if (instruction.rip_relative())
-	{
-		return { };
-	}
-
 	std::vector<binwrite::instruction_t> instructions = { };
 
 	const binwrite::register_family_t unused_register_family = instruction.find_unused_register();
@@ -217,7 +212,8 @@ void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwri
 		const std::uint32_t basic_block_index = i + added;
 		const binwrite::rva_t instruction_rva = basic_block.instruction_rva(basic_block_index);
 
-		if (binary.find_rva_ref(instruction_rva))
+		if (disassembled_instruction.rip_relative() || disassembled_instruction.has_lock() ||
+			binary.find_rva_ref(instruction_rva))
 		{
 			continue;
 		}

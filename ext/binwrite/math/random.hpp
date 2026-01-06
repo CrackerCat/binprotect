@@ -40,6 +40,19 @@ namespace binwrite::math
 	template <class T>
 	T& random_entry(const std::span<T> list)
 	{
+		assert(!list.empty());
+
+		const std::uint64_t size = list.size();
+		const std::uint64_t index = random_integral<std::uint64_t>(0, size - 1);
+
+		return list[index];
+	}
+
+	template <class T>
+	const T& random_entry(const std::span<const T> list)
+	{
+		assert(!list.empty());
+
 		const std::uint64_t size = list.size();
 		const std::uint64_t index = random_integral<std::uint64_t>(0, size - 1);
 

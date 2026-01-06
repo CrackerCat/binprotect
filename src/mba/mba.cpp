@@ -7,19 +7,27 @@
 #include <functional>
 #include <spdlog/spdlog.h>
 
+#include "binwrite/math/random.hpp"
+
+#define MBA_CALLBACK(callback) [](std::vector<binwrite::instruction_t>& instructions,\
+                                  const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register,\
+								  const binwrite::encoder_operand_t& second_unused_register) -> void\
+								  {\
+									  callback\
+								  }
+
+using mba_callback_t = std::function<void(std::vector<binwrite::instruction_t>& instructions,
+                                          const binwrite::encoder_operand_t& x,
+                                          const binwrite::encoder_operand_t& y,
+                                          const binwrite::encoder_operand_t& unused_register,
+                                          const binwrite::encoder_operand_t& second_unused_register)>;
+
 static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instruction_t& instruction,
-													const bool should_emulate_flags,
-													const std::function<void(
-	                                                     std::vector<binwrite::instruction_t>& instructions,
-	                                                     const binwrite::encoder_operand_t& x,
-	                                                     const binwrite::encoder_operand_t& y,
-	                                                     const binwrite::encoder_operand_t& unused_register,
-	                                                     const binwrite::encoder_operand_t& second_unused_register)>&
-													callback)
+													const bool should_emulate_flags, const std::span<const mba_callback_t> callbacks)
 {
 	const auto& visible_operands = instruction.visible_operands();
 
-	if (visible_operands.size() < 2 || instruction.rsp_relative())
+	if (visible_operands.size() < 2)
 	{
 		return { };
 	}
@@ -46,6 +54,8 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 	instructions.push_back(mov_instruction(x, unused_register).value());
 	instructions.push_back(mov_instruction(y, second_unused_register).value());
 
+	const auto& callback = binwrite::math::random_entry<mba_callback_t>(callbacks);
+
 	callback(instructions, x, y, unused_register, second_unused_register);
 
 	if (should_emulate_flags)
@@ -56,9 +66,12 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 		instructions.push_back(pop_instruction(unused_register_qword).value()); // restore 'x' value into unused register
 		instructions.push_back(popfq_instruction().value());
 
-		const auto flag_emulation_instructions = binprotect::mba::emulate_flag_behaviour(instruction, x, unused_register_family, unused_register, y, second_unused_register_family, second_unused_register);
+		const auto flag_emulation_instructions = binprotect::mba::emulate_flag_behaviour(
+			instruction, x, unused_register_family,
+ unused_register, y, second_unused_register_family,
+			second_unused_register);
 
-		instructions.insert(instructions.end(), flag_emulation_instructions.begin(), flag_emulation_instructions.end());
+		instructions.insert_range(instructions.end(), flag_emulation_instructions);
 	}
 
 	instructions.push_back(pop_instruction(second_unused_register_qword).value());
@@ -86,6 +99,11 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 	{
 		const auto& instruction = instructions[i];
 		const auto& disassembled_instruction = instruction.disassemble();
+
+		if (disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() || disassembled_instruction.has_lock())
+		{
+			continue;
+		}
 
 		std::vector<binwrite::instruction_t> obfuscated_instructions = { };
 
@@ -137,9 +155,8 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const auto callback =
-		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
-		{
+	const std::array<const mba_callback_t, 4> callbacks = {
+		MBA_CALLBACK(
 			// (x + y) can be obfuscated to ((x & y) + (x | y))
 
 			// unused register = (x & y)
@@ -150,42 +167,80 @@ std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassemb
 
 			// x = x + unused register
 			instructions.push_back(add_instruction(unused_register, x).value());
-		};
+		),
+		MBA_CALLBACK(
+			// (x + y) = x - (~y) - 1
+			instructions.push_back(not_instruction(second_unused_register).value());
+			instructions.push_back(sub_instruction(second_unused_register, x).value());
+			instructions.push_back(sub_instruction(encode_unsigned_imm_operand(1), x).value());
+		),
+		MBA_CALLBACK(
+			// (x + y) = (x ^ y) + 2(x & y)
+			instructions.push_back(and_instruction(y, unused_register).value());
+			instructions.push_back(xor_instruction(y, x).value());
+			instructions.push_back(shl_instruction(unused_register, 1).value());
 
-	return mba_stub(instruction, should_emulate_flags, callback);
+			instructions.push_back(add_instruction(unused_register, x).value());
+		),
+		MBA_CALLBACK(
+			// (x + y) = 2(x | y) - (x ^ y)
+			instructions.push_back(xor_instruction(y, unused_register).value());
+
+			instructions.push_back(or_instruction(second_unused_register, x).value());
+			instructions.push_back(shl_instruction(x, 1).value());
+
+			instructions.push_back(sub_instruction(unused_register, x).value());
+		)
+	};
+
+	return mba_stub(instruction, should_emulate_flags, callbacks);
 }
 
 std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const auto callback =
-		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
-		{
-			instructions.push_back(add_instruction(y, x).value());
-			instructions.push_back(or_instruction(y, unused_register).value());
-			instructions.push_back(sub_instruction(unused_register, x).value());
-		};
+	const std::array<const mba_callback_t, 2> callbacks = {
+		MBA_CALLBACK(
+			// (x & y) = (x + y) - (x | y)
 
-	return mba_stub(instruction, should_emulate_flags, callback);
+			instructions.push_back(or_instruction(y, unused_register).value());
+			instructions.push_back(add_instruction(y, x).value());
+			instructions.push_back(sub_instruction(unused_register, x).value());
+		),
+		MBA_CALLBACK(
+			// (x & y) = (~x | y) - (~x)
+
+			instructions.push_back(not_instruction(unused_register).value());
+			instructions.push_back(not_instruction(x).value());
+
+			instructions.push_back(or_instruction(second_unused_register, x).value());
+
+			instructions.push_back(sub_instruction(unused_register, x).value());
+		)
+	};
+
+	return mba_stub(instruction, should_emulate_flags, callbacks);
 }
 
 std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const auto callback =
-		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
-		{
+	const std::array<const mba_callback_t, 1> callbacks = {
+		MBA_CALLBACK(
+			// (x ^ y) = (x | y) - (x & y)
+
 			instructions.push_back(and_instruction(y, unused_register).value());
 			instructions.push_back(or_instruction(y, x).value());
 			instructions.push_back(sub_instruction(unused_register, x).value());
-		};
+		)
+	};
 
-	return mba_stub(instruction, should_emulate_flags, callback);
+	return mba_stub(instruction, should_emulate_flags, callbacks);
 }
 
 std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const auto callback =
-		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
-		{
+	const std::array<const mba_callback_t, 5> callbacks = {
+		MBA_CALLBACK(
+			// (x - y) = 2(x & -y) + (x ^ -y)
 			instructions.push_back(neg_instruction(second_unused_register).value());
 
 			instructions.push_back(xor_instruction(second_unused_register, unused_register).value());
@@ -193,16 +248,53 @@ std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassemb
 
 			instructions.push_back(shl_instruction(x, 1).value());
 			instructions.push_back(add_instruction(unused_register, x).value());
-		};
+		),
+		MBA_CALLBACK(
+			// (x - y) = 2(x & ~y) - (x ^ y)
+			instructions.push_back(xor_instruction(y, unused_register).value());
 
-	return mba_stub(instruction, should_emulate_flags, callback);
+			instructions.push_back(not_instruction(second_unused_register).value());
+			instructions.push_back(and_instruction(second_unused_register, x).value());
+			instructions.push_back(shl_instruction(x, 1).value());
+
+			instructions.push_back(sub_instruction(unused_register, x).value());
+		),
+		MBA_CALLBACK(
+			// (x - y) = x + (~y) + 1
+			instructions.push_back(not_instruction(second_unused_register).value());
+			instructions.push_back(add_instruction(encode_unsigned_imm_operand(1), second_unused_register).value());
+			instructions.push_back(add_instruction(second_unused_register, x).value());
+		),
+		MBA_CALLBACK(
+			// (x - y) = (x & ~y) - (~x & y)
+			instructions.push_back(not_instruction(unused_register).value());
+			instructions.push_back(not_instruction(second_unused_register).value());
+
+			instructions.push_back(and_instruction(y, unused_register).value());
+			instructions.push_back(and_instruction(second_unused_register, x).value());
+
+			instructions.push_back(sub_instruction(unused_register, x).value());
+		),
+		MBA_CALLBACK(
+			// (x - y) = (x ^ y) - 2(~x & y)
+			instructions.push_back(not_instruction(unused_register).value());
+			instructions.push_back(and_instruction(y, unused_register).value());
+			instructions.push_back(shl_instruction(unused_register, 1).value());
+
+			instructions.push_back(xor_instruction(y, x).value());
+
+			instructions.push_back(sub_instruction(unused_register, x).value());
+		)
+	};
+
+	return mba_stub(instruction, should_emulate_flags, callbacks);
 }
 
 std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const auto callback =
-		[](std::vector<binwrite::instruction_t>& instructions, const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register, const binwrite::encoder_operand_t& second_unused_register) -> void
-		{
+	const std::array<const mba_callback_t, 2> callbacks = {
+		MBA_CALLBACK(
+			// (x | y) = (~x | ~y) + (x + y + 1)
 			const binwrite::encoder_operand_t constant = encode_unsigned_imm_operand(1);
 
 			instructions.push_back(add_instruction(y, unused_register).value());
@@ -214,7 +306,17 @@ std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembl
 			instructions.push_back(or_instruction(second_unused_register, x).value());
 
 			instructions.push_back(add_instruction(unused_register, x).value());
-		};
+		),
+		MBA_CALLBACK(
+			// (x | y) = (x & ~y) + y
 
-	return mba_stub(instruction, should_emulate_flags, callback);
+			instructions.push_back(not_instruction(second_unused_register).value());
+			instructions.push_back(and_instruction(second_unused_register, x).value());
+			instructions.push_back(not_instruction(second_unused_register).value());
+
+			instructions.push_back(add_instruction(second_unused_register, x).value());
+		)
+	};
+
+	return mba_stub(instruction, should_emulate_flags, callbacks);
 }
