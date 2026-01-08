@@ -38,6 +38,8 @@ namespace binwrite
 		void erase(binary_t& binary, size_type index, size_type count, bool affects_buffer = true);
 		void erase(binary_t& binary, size_type index, bool affects_buffer = true);
 
+		void clear(binary_t& binary);
+
 		[[nodiscard]] instruction_t& last_instruction()
 		{
 			return instructions_.at(count() - 1);

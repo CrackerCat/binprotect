@@ -178,6 +178,11 @@ inline std::optional<binwrite::instruction_t> lea_instruction(const binwrite::en
 	return generic_src_dest_instruction(binwrite::mnemonic_t::lea, source, destination);
 }
 
+inline std::optional<binwrite::instruction_t> imul_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
+{
+	return generic_src_dest_instruction(binwrite::mnemonic_t::imul, source, destination);
+}
+
 inline std::optional<binwrite::instruction_t> test_instruction(const binwrite::encoder_operand_t& source, const binwrite::encoder_operand_t& destination)
 {
 	return generic_src_dest_instruction(binwrite::mnemonic_t::test, source, destination);

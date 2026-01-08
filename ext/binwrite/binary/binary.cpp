@@ -199,18 +199,18 @@ std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::is_inside_basic_blo
 	return { };
 }
 
-std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::split_basic_block(const std::shared_ptr<basic_block_t>& basic_block, const basic_block_t::size_type index)
+std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::split_basic_block(basic_block_t& basic_block, const basic_block_t::size_type index)
 {
 	if (index == 0)
 	{
 		return { };
 	}
 
-	const auto split_rva = basic_block->instruction_rva(index);
+	const auto split_rva = basic_block.instruction_rva(index);
 
-	const basic_block_t::size_type split_count = basic_block->count() - index;
+	const basic_block_t::size_type split_count = basic_block.count() - index;
 
-	const auto original_block_instructions = basic_block->instructions();
+	const auto original_block_instructions = basic_block.instructions();
 
 	const auto start = original_block_instructions.begin() + index;
 	const auto end = start + split_count;
@@ -218,7 +218,7 @@ std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::split_basic_block(c
 	const std::vector new_block_instructions(start, end);
 	const auto offset_rva = add_rva(split_rva);
 
-	basic_block->erase(*this, index, split_count, false);
+	basic_block.erase(*this, index, split_count, false);
 
 	auto new_basic_block = std::make_shared<basic_block_t>(offset_rva);
 
@@ -560,7 +560,7 @@ void binwrite::binary_t::process_disassembly_queue()
 			{
 				const auto index = overstepped_basic_block->instruction_index(rva_t{ instruction_rva });
 
-				split_basic_block(overstepped_basic_block, index);
+				split_basic_block(*overstepped_basic_block, index);
 
 				break;
 			}

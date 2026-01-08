@@ -209,7 +209,16 @@ binwrite::register_family_t binwrite::register_family_t::find(const register_t q
 	return family != families.end() ? *family : none;
 }
 
-binwrite::register_family_t binwrite::register_family_t::random()
+binwrite::register_family_t binwrite::register_family_t::random(const std::span<const register_family_t> excluding)
 {
-	return binwrite::math::random_entry<const register_family_t>(general_purpose);
+
+	register_family_t random_family = none;
+
+	do
+	{
+		random_family = math::random_entry<register_family_t>(general_purpose);
+
+	} while (std::ranges::contains(excluding, random_family));
+
+	return random_family;
 }

@@ -173,6 +173,7 @@
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\mba\flag_behaviour.cpp" />
     <ClCompile Include="src\mba\mba.cpp" />
+    <ClCompile Include="src\opaque_predicate\opaque_predicate.cpp" />
     <ClCompile Include="src\virtual_machine\hardware_register.cpp" />
     <ClCompile Include="src\virtual_machine\virtual_machine.cpp" />
     <ClCompile Include="src\virtual_machine\vm_context.cpp" />
@@ -212,6 +213,7 @@
     <ClInclude Include="src\linear_substitution\linear_substitution.hpp" />
     <ClInclude Include="src\mba\flag_behaviour.hpp" />
     <ClInclude Include="src\mba\mba.hpp" />
+    <ClInclude Include="src\opaque_predicate\opaque_predicate.hpp" />
     <ClInclude Include="src\virtual_machine\hardware_register.hpp" />
     <ClInclude Include="src\virtual_machine\operand.hpp" />
     <ClInclude Include="src\virtual_machine\virtual_machine.hpp" />

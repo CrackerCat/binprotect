@@ -2,6 +2,7 @@
 #include <Zydis/Zydis.h>
 
 #include <array>
+#include <span>
 
 namespace binwrite
 {
@@ -140,7 +141,7 @@ namespace binwrite
 		bool operator==(const register_family_t& other) const;
 
 		static [[nodiscard]] register_family_t find(register_t qword);
-		static [[nodiscard]] register_family_t random();
+		static [[nodiscard]] register_family_t random(std::span<const register_family_t> excluding);
 
 		static const register_family_t none;
 

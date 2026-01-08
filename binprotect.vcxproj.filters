@@ -99,6 +99,9 @@
     <ClCompile Include="src\virtual_machine\vm_context.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\opaque_predicate\opaque_predicate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp">
@@ -213,6 +216,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\virtual_machine\operand.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\opaque_predicate\opaque_predicate.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

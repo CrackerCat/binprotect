@@ -68,7 +68,7 @@ static std::shared_ptr<binwrite::rva_t> insert_entry_block_stub(binwrite::binary
 
 	const binwrite::rva_t new_end_rva = entry_block->end_rva();
 
-	const auto split_block = binary.split_basic_block(entry_block, 4);
+	const auto split_block = binary.split_basic_block(*entry_block, 4);
 
 	function.add_basic_block(split_block);
 

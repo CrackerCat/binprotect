@@ -146,7 +146,7 @@ void binwrite::basic_block_t::push(binary_t& binary, const std::span<const instr
 {
 	if (!pre_existing)
 	{
-		const rva_t rva = instruction_rva(count());
+		const rva_t rva = end_rva();
 		const auto bytes = group_instruction_bytes(instructions);
 
 		binary.insert(rva, bytes, inclusive);
@@ -192,4 +192,9 @@ void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, con
 void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, const bool affects_buffer)
 {
 	return erase(binary, index, 1, affects_buffer);
+}
+
+void binwrite::basic_block_t::clear(binary_t& binary)
+{
+	erase(binary, 0, count(), true);
 }

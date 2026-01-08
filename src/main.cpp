@@ -14,6 +14,7 @@
 #include "control_flow/control_flow_obfuscation.hpp"
 #include "linear_substitution/linear_substitution.hpp"
 #include "mba/mba.hpp"
+#include "opaque_predicate/opaque_predicate.hpp"
 
 std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
 {
@@ -78,7 +79,7 @@ void mutate_basic_block(binwrite::binary_t& binary, binwrite::basic_block_t& bas
 {
 	binprotect::linear_substitution::do_pass(binary, basic_block);
 
-	constexpr std::uint32_t mba_passes = 1;
+	constexpr std::uint32_t mba_passes = 2;
 
 	bool is_first_pass = true;
 
@@ -127,14 +128,17 @@ std::int32_t main()
 	const std::vector basic_blocks(original_basic_blocks.begin(), original_basic_blocks.end());
 
 	std::vector<std::shared_ptr<binwrite::basic_block_t>> virtual_machine_blocks;
+	std::vector<std::shared_ptr<binwrite::basic_block_t>> opaque_blocks;
 
 	for (std::uint64_t i = 0; i < basic_blocks.size(); i++)
 	{
 		const auto& basic_block = basic_blocks[i];
 
+		binprotect::opaque_predicate::do_pass(pe, *basic_block, opaque_blocks);
+
 		mutate_basic_block(pe, *basic_block);
 
-		binprotect::vm::do_pass(pe, *basic_block, code_section->rva(), virtual_machine_blocks);
+		//binprotect::vm::do_pass(pe, *basic_block, code_section->rva(), virtual_machine_blocks);
 
 		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
 
@@ -152,6 +156,15 @@ std::int32_t main()
 		mutate_basic_block(pe, *basic_block);
 
 		spdlog::info("obfuscated {}/{} virtual machine blocks", i + 1, virtual_machine_blocks.size());
+	}
+
+	for (std::uint64_t i = 0; i < opaque_blocks.size(); i++)
+	{
+		const auto& basic_block = opaque_blocks[i];
+
+		mutate_basic_block(pe, *basic_block);
+
+		spdlog::info("obfuscated {}/{} opaque blocks", i + 1, opaque_blocks.size());
 	}
 
 	pe.update_rva_references();

@@ -1,6 +1,8 @@
 #include "disassembler.hpp"
+
 #include "mnemonic.hpp"
 #include "../rva/rva.hpp"
+#include "binwrite/math/random.hpp"
 
 bool binwrite::decoded_operand_t::is_imm() const
 {
@@ -273,44 +275,33 @@ std::span<const binwrite::decoded_operand_t> binwrite::disassembled_instruction_
 binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_register(
 	const std::span<const register_family_t> excluding) const
 {
-	std::vector<register_t> used_registers = { };
+	std::vector used_registers(excluding.begin(), excluding.end());
 
-	for (const auto& visible_operand : visible_operands())
+	for (const auto& operand : operands_)
 	{
-		if (visible_operand.is_reg())
+		if (operand.is_reg())
 		{
-			const auto& reg = visible_operand.reg();
+			const auto& reg = operand.reg();
 
-			used_registers.push_back(reg.value);
+			used_registers.push_back(reg.value.family());
 		}
-		else if (visible_operand.is_mem())
+		else if (operand.is_mem())
 		{
-			const auto& mem = visible_operand.mem();
+			const auto& mem = operand.mem();
 
-			used_registers.push_back(mem.base);
-			used_registers.push_back(mem.index);
+			if (mem.base != register_t::none)
+			{
+				used_registers.push_back(mem.base.family());
+			}
+
+			if (mem.index != register_t::none)
+			{
+				used_registers.push_back(mem.index.family());
+			}
 		}
 	}
 
-	const auto unused_register = std::ranges::find_if(
-		register_family_t::general_purpose,
-		[&used_registers, excluding](const register_family_t family)
-		{
-			if (std::ranges::contains(excluding, family))
-			{
-				return false;
-			}
-
-			return std::ranges::none_of(used_registers,
-				[family, excluding](const register_t used_register)
-				{
-					return family == used_register.family();
-				}
-			);
-		}
-	);
-
-	return *unused_register;
+	return register_family_t::random(used_registers);
 }
 
 binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_register(

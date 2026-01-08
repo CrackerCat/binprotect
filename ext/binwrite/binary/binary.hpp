@@ -104,7 +104,7 @@ namespace binwrite
 
 		[[nodiscard]] std::shared_ptr<basic_block_t> find_basic_block(rva_t rva) const;
 		[[nodiscard]] std::shared_ptr<basic_block_t> is_inside_basic_block(rva_t rva) const;
-		std::shared_ptr<basic_block_t> split_basic_block(const std::shared_ptr<basic_block_t>& basic_block, basic_block_t::size_type index);
+		std::shared_ptr<basic_block_t> split_basic_block(basic_block_t& basic_block, basic_block_t::size_type index);
 
 		[[nodiscard]] std::vector<std::shared_ptr<rva_t>> rvas();
 		[[nodiscard]] std::vector<std::shared_ptr<rva_ref_t>> rva_refs();
