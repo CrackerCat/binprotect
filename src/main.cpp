@@ -140,8 +140,6 @@ std::int32_t main()
 
 		//binprotect::vm::do_pass(pe, *basic_block, code_section->rva(), virtual_machine_blocks);
 
-		binprotect::control_flow::obfuscation::do_pass(pe, *basic_block);
-
 		spdlog::info("obfuscated {}/{} blocks", i + 1, basic_blocks.size());
 	}
 

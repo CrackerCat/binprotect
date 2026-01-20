@@ -75,9 +75,6 @@
     <ClCompile Include="src\linear_substitution\linear_substitution.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\control_flow\control_flow_obfuscation.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\control_flow\control_flow_flattening.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -186,9 +183,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\assembler\assembler.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\control_flow\control_flow_obfuscation.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\binwrite\math\random.hpp">

@@ -168,7 +168,6 @@
     <ClCompile Include="ext\portable-executable\relocations_directory.cpp" />
     <ClCompile Include="ext\portable-executable\section_header.cpp" />
     <ClCompile Include="src\control_flow\control_flow_flattening.cpp" />
-    <ClCompile Include="src\control_flow\control_flow_obfuscation.cpp" />
     <ClCompile Include="src\linear_substitution\linear_substitution.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\mba\flag_behaviour.cpp" />
@@ -209,7 +208,6 @@
     <ClInclude Include="ext\portable-executable\section_header.hpp" />
     <ClInclude Include="src\assembler\assembler.hpp" />
     <ClInclude Include="src\control_flow\control_flow_flattening.hpp" />
-    <ClInclude Include="src\control_flow\control_flow_obfuscation.hpp" />
     <ClInclude Include="src\linear_substitution\linear_substitution.hpp" />
     <ClInclude Include="src\mba\flag_behaviour.hpp" />
     <ClInclude Include="src\mba\mba.hpp" />
