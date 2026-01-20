@@ -266,23 +266,30 @@ void vm_context_t::process_hidden_register(std::vector<binwrite::instruction_t>&
                                            const binwrite::decoded_operand_t& hidden_operand,
                                            const binwrite::register_t reg)
 {
-	if (reg.is_general_purpose())
+	if (!reg.is_general_purpose())
 	{
-		const auto family = reg.family();
-
-		std::erase(free_registers_, family);
-
-		const auto redirected_operand = redirect_operand(load_instructions, reg);
-
-		load_instructions.push_back(mov_instruction(redirected_operand, family.qword).value());
-
-		if (hidden_operand.is_write_action())
-		{
-			unload_instructions.push_back(mov_instruction(family.qword, redirected_operand).value());
-		}
-
-		holding_registers.emplace_back(shared_from_this(), family);
+		return;
 	}
+
+	const auto family = reg.family();
+
+	if (std::ranges::contains(holding_registers, family, &hardware_register_t::value))
+	{
+		return;
+	}
+
+	std::erase(free_registers_, family);
+
+	const auto redirected_operand = redirect_operand(load_instructions, reg);
+
+	load_instructions.push_back(mov_instruction(redirected_operand, family.qword).value());
+
+	if (hidden_operand.is_write_action())
+	{
+		unload_instructions.push_back(mov_instruction(family.qword, redirected_operand).value());
+	}
+
+	holding_registers.emplace_back(shared_from_this(), family);
 }
 
 void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruction_t>& instructions,
@@ -295,7 +302,7 @@ void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruct
 
 	if (uses_flags)
 	{
-		load_flags(instructions, operand_offset);
+		load_flags(instructions, operand_offset, operands);
 	}
 
 	binwrite::assembler_instruction_t reassembled_instruction = make_assembler_instruction(instruction_disassembly).value();
@@ -481,7 +488,8 @@ hardware_register_t vm_context_t::read_operand(std::vector<binwrite::instruction
 	return holder;
 }
 
-void vm_context_t::load_flags(std::vector<binwrite::instruction_t>& instructions, const std::int64_t operand_offset)
+void vm_context_t::load_flags(std::vector<binwrite::instruction_t>& instructions, const std::int64_t operand_offset,
+	const std::span<const binwrite::encoder_operand_t> operands)
 {
 	const hardware_register_t holder = random_hardware_register();
 

@@ -18,6 +18,9 @@ public:
 
 	~hardware_register_t();
 
+	hardware_register_t(hardware_register_t&) = delete;
+	hardware_register_t& operator=(hardware_register_t&) = delete;
+
 	hardware_register_t(hardware_register_t&&) = default;
 	hardware_register_t& operator=(hardware_register_t&&) = default;
 

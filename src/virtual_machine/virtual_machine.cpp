@@ -1,8 +1,7 @@
 #include "virtual_machine.hpp"
+#include "vm_context.hpp"
 
 #include <spdlog/spdlog.h>
-
-#include "vm_context.hpp"
 
 static void insert_call_to_block(binwrite::binary_t& binary,
 	binwrite::basic_block_t& source_block,
