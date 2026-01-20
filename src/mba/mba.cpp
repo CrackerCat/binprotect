@@ -9,33 +9,34 @@
 
 #include "binwrite/math/random.hpp"
 
-#define MBA_CALLBACK(callback) [](std::vector<binwrite::instruction_t>& instructions,\
+using mba_callback_t = std::function<void(std::vector<binwrite::instruction_t>& instructions,
+	const binwrite::encoder_operand_t& x,
+	const binwrite::encoder_operand_t& y,
+	const binwrite::encoder_operand_t& unused_register,
+	const binwrite::encoder_operand_t& second_unused_register)>;
+
+#define MBA_CALLBACK(callback) (mba_callback_t)[](std::vector<binwrite::instruction_t>& instructions,\
                                   const binwrite::encoder_operand_t& x, const binwrite::encoder_operand_t& y, const binwrite::encoder_operand_t& unused_register,\
 								  const binwrite::encoder_operand_t& second_unused_register) -> void\
 								  {\
 									  callback\
 								  }
 
-using mba_callback_t = std::function<void(std::vector<binwrite::instruction_t>& instructions,
-                                          const binwrite::encoder_operand_t& x,
-                                          const binwrite::encoder_operand_t& y,
-                                          const binwrite::encoder_operand_t& unused_register,
-                                          const binwrite::encoder_operand_t& second_unused_register)>;
-
 static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassembled_instruction_t& instruction,
 													const bool should_emulate_flags, const std::span<const mba_callback_t> callbacks)
 {
 	const auto& visible_operands = instruction.visible_operands();
 
-	if (visible_operands.size() < 2)
+	if (callbacks.empty() || visible_operands.size() < 2)
 	{
 		return { };
 	}
 
 	const auto& decoded_x = visible_operands[0];
+	const auto& decoded_y = visible_operands[1];
 
 	const binwrite::encoder_operand_t x(decoded_x);
-	const binwrite::encoder_operand_t y(visible_operands[1]);
+	const binwrite::encoder_operand_t y(decoded_y);
 
 	const binwrite::register_family_t unused_register_family = instruction.find_unused_register();
 	const binwrite::register_family_t second_unused_register_family = instruction.find_unused_register(unused_register_family);
@@ -60,8 +61,8 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 
 	if (should_emulate_flags)
 	{
+		instructions.insert(instructions.begin() + 4, push_instruction(unused_register_qword).value());
 		instructions.insert(instructions.begin() + 4, pushfq_instruction().value());
-		instructions.insert(instructions.begin() + 5, push_instruction(unused_register_qword).value());
 
 		instructions.push_back(pop_instruction(unused_register_qword).value()); // restore 'x' value into unused register
 		instructions.push_back(popfq_instruction().value());
@@ -113,6 +114,7 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 			const binwrite::mnemonic_t mnemonic = disassembled_instruction.mnemonic();
 
+			// switch statement isn't compatible with the mnemonic_t members as they aren't constexpr
 			if (mnemonic == binwrite::mnemonic_t::add)
 			{
 				obfuscated_instructions = mba_obfuscate_add(disassembled_instruction, should_emulate_flags);
@@ -155,7 +157,7 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const std::array<const mba_callback_t, 4> callbacks = {
+	const std::array callbacks = {
 		MBA_CALLBACK(
 			// (x + y) can be obfuscated to ((x & y) + (x | y))
 
@@ -167,12 +169,6 @@ std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassemb
 
 			// x = x + unused register
 			instructions.push_back(add_instruction(unused_register, x).value());
-		),
-		MBA_CALLBACK(
-			// (x + y) = x - (~y) - 1
-			instructions.push_back(not_instruction(second_unused_register).value());
-			instructions.push_back(sub_instruction(second_unused_register, x).value());
-			instructions.push_back(sub_instruction(encode_unsigned_imm_operand(1), x).value());
 		),
 		MBA_CALLBACK(
 			// (x + y) = (x ^ y) + 2(x & y)
@@ -198,7 +194,7 @@ std::vector<binwrite::instruction_t> mba_obfuscate_add(const binwrite::disassemb
 
 std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const std::array<const mba_callback_t, 2> callbacks = {
+	const std::array callbacks = {
 		MBA_CALLBACK(
 			// (x & y) = (x + y) - (x | y)
 
@@ -223,7 +219,7 @@ std::vector<binwrite::instruction_t> mba_obfuscate_and(const binwrite::disassemb
 
 std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const std::array<const mba_callback_t, 1> callbacks = {
+	const std::array callbacks = {
 		MBA_CALLBACK(
 			// (x ^ y) = (x | y) - (x & y)
 
@@ -238,19 +234,9 @@ std::vector<binwrite::instruction_t> mba_obfuscate_xor(const binwrite::disassemb
 
 std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const std::array<const mba_callback_t, 5> callbacks = {
+	const std::array callbacks = {
 		MBA_CALLBACK(
-			// (x - y) = 2(x & -y) + (x ^ -y)
-			instructions.push_back(neg_instruction(second_unused_register).value());
-
-			instructions.push_back(xor_instruction(second_unused_register, unused_register).value());
-			instructions.push_back(and_instruction(second_unused_register, x).value());
-
-			instructions.push_back(shl_instruction(x, 1).value());
-			instructions.push_back(add_instruction(unused_register, x).value());
-		),
-		MBA_CALLBACK(
-			// (x - y) = 2(x & ~y) - (x ^ y)
+			// (x - y) = 2(x & ~y) - (x ^ y) 
 			instructions.push_back(xor_instruction(y, unused_register).value());
 
 			instructions.push_back(not_instruction(second_unused_register).value());
@@ -258,12 +244,6 @@ std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassemb
 			instructions.push_back(shl_instruction(x, 1).value());
 
 			instructions.push_back(sub_instruction(unused_register, x).value());
-		),
-		MBA_CALLBACK(
-			// (x - y) = x + (~y) + 1
-			instructions.push_back(not_instruction(second_unused_register).value());
-			instructions.push_back(add_instruction(encode_unsigned_imm_operand(1), second_unused_register).value());
-			instructions.push_back(add_instruction(second_unused_register, x).value());
 		),
 		MBA_CALLBACK(
 			// (x - y) = (x & ~y) - (~x & y)
@@ -292,7 +272,7 @@ std::vector<binwrite::instruction_t> mba_obfuscate_sub(const binwrite::disassemb
 
 std::vector<binwrite::instruction_t> mba_obfuscate_or(const binwrite::disassembled_instruction_t& instruction, const bool should_emulate_flags)
 {
-	const std::array<const mba_callback_t, 2> callbacks = {
+	const std::array callbacks = {
 		MBA_CALLBACK(
 			// (x | y) = (~x | ~y) + (x + y + 1)
 			const binwrite::encoder_operand_t constant = encode_unsigned_imm_operand(1);
