@@ -131,9 +131,10 @@ bool binwrite::disassembled_instruction_t::rsp_relative() const
 	{
 		if (operand.is_reg())
 		{
-			const auto reg = operand.reg();
+			const auto reg = operand.reg().value;
+			const auto family = reg.family();
 
-			if (reg.value == register_t::rsp)
+			if (family == register_family_t::sp)
 			{
 				return true;
 			}
@@ -142,8 +143,9 @@ bool binwrite::disassembled_instruction_t::rsp_relative() const
 		if (operand.is_mem())
 		{
 			const auto mem = operand.mem();
+			const auto base_family = mem.base.family();
 
-			if (mem.base == register_t::rsp)
+			if (base_family == register_family_t::sp)
 			{
 				return true;
 			}
@@ -338,6 +340,11 @@ bool binwrite::disassembled_instruction_t::is_ret() const
 bool binwrite::disassembled_instruction_t::is_mov() const
 {
 	return ZYDIS_MNEMONIC_MOV <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_MOVZX;
+}
+
+bool binwrite::disassembled_instruction_t::is_movzx() const
+{
+	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_MOVZX;
 }
 
 bool binwrite::disassembled_instruction_t::is_lea() const

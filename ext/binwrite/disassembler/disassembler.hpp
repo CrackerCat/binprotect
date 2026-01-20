@@ -127,6 +127,7 @@ namespace binwrite
 		[[nodiscard]] bool is_call() const;
 		[[nodiscard]] bool is_ret() const;
 		[[nodiscard]] bool is_mov() const;
+		[[nodiscard]] bool is_movzx() const;
 		[[nodiscard]] bool is_lea() const;
 		[[nodiscard]] bool is_rol() const;
 		[[nodiscard]] bool is_ror() const;

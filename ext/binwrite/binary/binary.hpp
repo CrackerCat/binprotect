@@ -94,6 +94,7 @@ namespace binwrite
 		[[nodiscard]] std::span<std::shared_ptr<function_t>> functions();
 		[[nodiscard]] std::span<const std::shared_ptr<function_t>> functions() const;
 
+		std::shared_ptr<function_t> find_function(rva_t rva) const;
 		std::shared_ptr<function_t> create_function(const std::string& name, rva_t rva);
 
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva, std::span<const instruction_t> instructions);
@@ -168,8 +169,8 @@ namespace binwrite
 		std::shared_ptr<rva_t> add_relocation_rva(rva_t::value_type target);
 		std::shared_ptr<rva_t> add_relocation_rva(rva_t target);
 
-		void add_llvm_jmp_table_ref(rva_t table_base);
-		void add_msvc_jmp_table_ref(rva_t table_base);
+		void add_llvm_jmp_table_ref(rva_t table_base, std::int32_t count);
+		void add_msvc_jmp_table_ref(rva_t table_base, std::int32_t count);
 
 		std::vector<std::uint8_t> buffer_;
 		std::unordered_map<std::string, std::shared_ptr<section_t>> sections_;

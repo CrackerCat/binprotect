@@ -125,6 +125,19 @@ std::span<const std::shared_ptr<binwrite::function_t>> binwrite::binary_t::funct
 	return functions_;
 }
 
+std::shared_ptr<binwrite::function_t> binwrite::binary_t::find_function(const rva_t rva) const
+{
+	for (const auto& function : functions_)
+	{
+		if (*function->rva() == rva)
+		{
+			return function;
+		}
+	}
+
+	return { };
+}
+
 std::shared_ptr<binwrite::function_t> binwrite::binary_t::create_function(const std::string& name, const rva_t rva)
 {
 	const auto added_rva = add_rva(rva);
@@ -362,6 +375,43 @@ void binwrite::binary_t::update_rva_references()
 	update_section_headers();
 }
 
+static std::shared_ptr<binwrite::basic_block_t> previous_basic_block(const binwrite::binary_t& binary, const binwrite::basic_block_t& basic_block)
+{
+	const binwrite::rva_t current_block_rva = *basic_block.rva();
+	const binwrite::rva_t last_block_rva(current_block_rva.value() - 1);
+
+	return binary.is_inside_basic_block(last_block_rva);
+}
+
+static std::int32_t estimate_jump_table_count(const binwrite::binary_t& binary, const binwrite::basic_block_t& basic_block)
+{
+	const auto last_block = previous_basic_block(binary, basic_block);
+
+	if (!last_block || last_block->count() < 2)
+	{
+		return -1;
+	}
+
+	const auto& index_instruction = last_block->at(last_block->count() - 2);
+	const auto& index_disassembly = index_instruction.disassemble();
+
+	if (!index_disassembly.is_sub() && !index_disassembly.is_cmp())
+	{
+		return -1;
+	}
+
+	const auto index_operands = index_disassembly.visible_operands();
+
+	if (index_operands[1].is_imm())
+	{
+		const auto imm = index_operands[1].imm();
+
+		return static_cast<std::int32_t>(imm.value.s) + 1;
+	}
+
+	return -1;
+}
+
 void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 {
 	const auto& instructions = basic_block.instructions();
@@ -379,7 +429,7 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 			latest_lea = root_instruction;
 		}
 
-		if (!latest_lea || !root_instruction.is_mov())
+		if (!latest_lea || !root_instruction.is_mov() || root_instruction.is_movzx())
 		{
 			continue;
 		}
@@ -414,11 +464,13 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 				continue;
 			}
 
+			const std::int32_t count = estimate_jump_table_count(*this, basic_block);
+
 			if (is_msvc)
 			{
 				const auto table_base = add_rva(static_cast<rva_t::value_type>(mem.displacement));
 
-				add_msvc_jmp_table_ref(*table_base);
+				add_msvc_jmp_table_ref(*table_base, count);
 
 				const rva_t root_instruction_rva = basic_block.instruction_rva(i);
 
@@ -426,7 +478,7 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 			}
 			else if (const auto table_base = resolve_instruction_rva(*latest_lea, latest_lea_rva))
 			{
-				add_llvm_jmp_table_ref(rva_t{ *table_base });
+				add_llvm_jmp_table_ref(rva_t{ *table_base }, count);
 			}
 		}
 	}
@@ -741,13 +793,15 @@ std::shared_ptr<binwrite::rva_t> binwrite::binary_t::add_relocation_rva(const rv
 	return add_relocation_rva(target.value());
 }
 
-void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base)
+void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base, const std::int32_t count)
 {
 	const auto table_base_rva = add_rva(table_base);
 
 	rva_t table_entry = table_base;
 
-	while (true)
+	std::int32_t i = 0;
+
+	while (count == -1 || i++ < count)
 	{
 		const llvm_jmp_table_entry_t::value_type offset = *reinterpret_cast<const llvm_jmp_table_entry_t::value_type*>(data() + table_entry.value());
 
@@ -767,11 +821,13 @@ void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base)
 	}
 }
 
-void binwrite::binary_t::add_msvc_jmp_table_ref(const rva_t table_base)
+void binwrite::binary_t::add_msvc_jmp_table_ref(const rva_t table_base, const std::int32_t count)
 {
 	rva_t table_entry = table_base;
 
-	while (true)
+	std::int32_t i = 0;
+
+	while (count == -1 || i++ < count)
 	{
 		const auto entry = reinterpret_cast<const rva_t::value_type*>(data() + table_entry.value());
 

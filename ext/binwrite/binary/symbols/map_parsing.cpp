@@ -82,6 +82,11 @@ bool binwrite::symbols::map::parse(binary_t& binary, const std::filesystem::path
 		const auto function_name = regex_matches[3].str();
 		const auto function_rva = rva_t{ static_cast<std::uint32_t>(function_address - image_base) };
 
+		if (binary.find_function(function_rva))
+		{
+			continue;
+		}
+
 		binary.create_function(function_name, function_rva);
 	}
 
