@@ -3,5 +3,5 @@
 
 namespace binprotect::mba
 {
-	void do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block, bool is_first_pass);
+	void do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block, bool flag_dependant);
 }
