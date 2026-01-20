@@ -73,8 +73,6 @@ std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::u
 
 std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction)
 {
-	std::vector<binwrite::instruction_t> instructions = { };
-
 	const binwrite::register_family_t unused_register_family = instruction.find_unused_register();
 
 	const auto operands = instruction.visible_operands();
@@ -86,19 +84,26 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 
 	const auto& destination_operand = operands[0];
 
-	if (destination_operand.is_reg() && destination_operand.reg().value == binwrite::register_t::rsp)
-	{
-		return { };
-	}
-
 	const binwrite::decoded_operand_t::size_type operand_size = destination_operand.size();
 
 	const binwrite::encoder_operand_t unused_register_qword(unused_register_family.qword);
 	const binwrite::register_t unused_register = unused_register_family.of_size(operand_size);
 
+	std::vector<binwrite::instruction_t> instructions = { };
+
 	for (auto& operand : operands)
 	{
-		if (operand.is_imm())
+		if (operand.is_reg())
+		{
+			const auto reg = operand.reg().value;
+			const auto family = reg.family();
+
+			if (family == binwrite::register_family_t::sp)
+			{
+				return { };
+			}
+		}
+		else if (operand.is_imm())
 		{
 			const auto imm = operand.imm();
 
@@ -142,8 +147,7 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 
 			break;
 		}
-		
-		if (operand.is_mem())
+		else if (operand.is_mem())
 		{
 			auto mem = operand.mem();
 
@@ -151,14 +155,16 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 			{
 				std::int64_t value = mem.displacement;
 
-				const std::int64_t random = generate_random_signed_constant(operand_size);
+				constexpr std::uint32_t displacement_bit_count = 32;
+
+				const std::int64_t random = generate_random_signed_constant(displacement_bit_count);
 
 				if (mem.base == binwrite::register_t::rsp)
 				{
 					value += 16;
 				}
 
-				const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, operand_size));
+				const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, displacement_bit_count));
 				const auto second = encode_signed_imm_operand(random);
 
 				instructions.push_back(push_instruction(unused_register_qword).value());
@@ -212,8 +218,8 @@ void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwri
 		const std::uint32_t basic_block_index = i + added;
 		const binwrite::rva_t instruction_rva = basic_block.instruction_rva(basic_block_index);
 
-		if (disassembled_instruction.rip_relative() || disassembled_instruction.has_lock() ||
-			binary.find_rva_ref(instruction_rva))
+		if (disassembled_instruction.rip_relative() || disassembled_instruction.writes_stack_pointer() ||
+			disassembled_instruction.has_lock() || binary.find_rva_ref(instruction_rva))
 		{
 			continue;
 		}
