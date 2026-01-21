@@ -412,74 +412,142 @@ static std::int32_t estimate_jump_table_count(const binwrite::binary_t& binary, 
 	return -1;
 }
 
+static std::optional<binwrite::decoded_operand_t::mem_t> extract_jump_table_mov_operand(const binwrite::disassembled_instruction_t& mov_disassembly, const bool ignore_scale = false)
+{
+	const auto& mov_operands = mov_disassembly.visible_operands();
+	const auto& mov_operand = mov_operands[1];
+
+	if (!mov_operand.is_mem())
+	{
+		return { };
+	}
+
+	const auto mem = mov_operand.mem();
+
+	if ((!ignore_scale && mem.scale != 4) ||
+		mem.index == binwrite::register_t::none ||
+		mem.base == binwrite::register_t::none)
+	{
+		return { };
+	}
+
+	return mem;
+}
+
+static std::optional<binwrite::disassembled_instruction_t> extract_jump_table_lea_disassembly(
+	const binwrite::basic_block_t& basic_block, const binwrite::basic_block_t::size_type lea_index,
+	const binwrite::decoded_operand_t::mem_t mem)
+{
+	const auto& lea_instruction = basic_block.at(lea_index);
+	const auto& lea_disassembly = lea_instruction.disassemble();
+
+	const auto lea_operands = lea_disassembly.visible_operands();
+
+	const auto reg = lea_operands[0];
+
+	if (!reg.is_reg() || reg.reg().value != mem.base)
+	{
+		return { };
+	}
+
+	return lea_disassembly;
+}
+
+
+bool binwrite::binary_t::process_multi_level_jump_table(const basic_block_t& basic_block, const rva_t entry_table_base,
+                                                        const basic_block_t::size_type mov_index)
+{
+	if (mov_index == 0)
+	{
+		return false;
+	}
+
+	const basic_block_t::size_type previous_index = mov_index - 1;
+
+	const auto& movzx_instruction = basic_block.at(previous_index);
+	const auto& movzx_disassembly = movzx_instruction.disassemble();
+
+	if (!movzx_disassembly.is_movzx())
+	{
+		return false;
+	}
+
+	const auto mem = extract_jump_table_mov_operand(movzx_disassembly, true);
+
+	if (!mem)
+	{
+		return false;
+	}
+
+	const rva_t movzx_rva = basic_block.instruction_rva(previous_index);
+	const auto index_table_base = add_rva(static_cast<rva_t::value_type>(mem->displacement));
+
+	const std::uint32_t inner_table_size = index_table_base->value() - entry_table_base.value();
+	const std::int32_t inner_table_count = static_cast<std::int32_t>(inner_table_size / 4);
+
+	add_rva_ref(std::make_shared<msvc_jmp_table_ref_t>(index_table_base, movzx_rva, movzx_disassembly.size()));
+	add_msvc_jmp_table_ref(entry_table_base, inner_table_count);
+
+	return true;
+}
+
+void binwrite::binary_t::process_jump_table_instruction(const basic_block_t& basic_block,
+                                                        const disassembled_instruction_t& mov_disassembly,
+                                                        const basic_block_t::size_type mov_index,
+                                                        const basic_block_t::size_type lea_index)
+{
+	const auto mem = extract_jump_table_mov_operand(mov_disassembly);
+
+	if (!mem)
+	{
+		return;
+	}
+
+	const auto lea_disassembly = extract_jump_table_lea_disassembly(basic_block, lea_index, *mem);
+
+	if (!lea_disassembly)
+	{
+		return;
+	}
+
+	const std::int32_t count = estimate_jump_table_count(*this, basic_block);
+
+	if (mem->has_displacement) // has displacement = is MSVC
+	{
+		const auto table_base = add_rva(static_cast<rva_t::value_type>(mem->displacement));
+		const rva_t mov_disassembly_rva = basic_block.instruction_rva(mov_index);
+
+		add_rva_ref(std::make_shared<msvc_jmp_table_ref_t>(table_base, mov_disassembly_rva, mov_disassembly.size()));
+
+		if (!process_multi_level_jump_table(basic_block, *table_base, mov_index))
+		{
+			add_msvc_jmp_table_ref(*table_base, count);
+		}
+	}
+	else if (const auto table_base = resolve_instruction_rva(*lea_disassembly, basic_block.instruction_rva(lea_index)))
+	{
+		add_llvm_jmp_table_ref(rva_t{ *table_base }, count);
+	}
+}
+
 void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 {
 	const auto& instructions = basic_block.instructions();
 
-	std::optional<disassembled_instruction_t> latest_lea = std::nullopt;
-	rva_t latest_lea_rva = { };
+	basic_block_t::size_type latest_lea = -1;
 
 	for (std::uint32_t i = 0; i < instructions.size(); i++)
 	{
-		const auto& root_instruction = instructions[i].disassemble();
+		const auto& instruction = instructions[i];
+		const auto& disassembled_instruction = instruction.disassemble();
 
-		if (root_instruction.is_lea() && root_instruction.rip_relative())
+		if (disassembled_instruction.is_lea() && disassembled_instruction.rip_relative())
 		{
-			latest_lea_rva = basic_block.instruction_rva(i);
-			latest_lea = root_instruction;
+			latest_lea = i;
 		}
-
-		if (!latest_lea || !root_instruction.is_mov() || root_instruction.is_movzx())
+		else if (latest_lea != -1 && disassembled_instruction.is_mov())
 		{
-			continue;
-		}
-
-		for (const auto& root_operand : root_instruction.visible_operands())
-		{
-			if (!root_operand.is_mem())
-			{
-				continue;
-			}
-
-			const auto mem = root_operand.mem();
-
-			if (mem.scale != 4 || mem.index == register_t::none || mem.base == register_t::none)
-			{
-				continue;
-			}
-
-			const bool is_msvc = mem.has_displacement;
-
-			const auto lea_operands = latest_lea->visible_operands();
-
-			if (lea_operands.empty())
-			{
-				continue;
-			}
-
-			const auto result_operand = lea_operands[0];
-
-			if (!result_operand.is_reg() || result_operand.reg().value != mem.base)
-			{
-				continue;
-			}
-
-			const std::int32_t count = estimate_jump_table_count(*this, basic_block);
-
-			if (is_msvc)
-			{
-				const auto table_base = add_rva(static_cast<rva_t::value_type>(mem.displacement));
-
-				add_msvc_jmp_table_ref(*table_base, count);
-
-				const rva_t root_instruction_rva = basic_block.instruction_rva(i);
-
-				add_rva_ref(std::make_shared<msvc_jmp_table_ref_t>(table_base, root_instruction_rva, root_instruction.size()));
-			}
-			else if (const auto table_base = resolve_instruction_rva(*latest_lea, latest_lea_rva))
-			{
-				add_llvm_jmp_table_ref(rva_t{ *table_base }, count);
-			}
+			process_jump_table_instruction(basic_block, disassembled_instruction, i, latest_lea);
 		}
 	}
 }

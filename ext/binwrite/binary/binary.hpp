@@ -160,6 +160,14 @@ namespace binwrite
 		virtual void update_section_headers() = 0;
 		virtual void update_relocations() = 0;
 
+		bool process_multi_level_jump_table(const basic_block_t& basic_block, rva_t entry_table_base,
+		                                    basic_block_t::size_type mov_index);
+
+		void process_jump_table_instruction(const basic_block_t& basic_block,
+		                                    const disassembled_instruction_t& mov_disassembly,
+		                                    basic_block_t::size_type mov_index,
+		                                    basic_block_t::size_type lea_index);
+
 		void find_jump_tables(const basic_block_t& basic_block);
 
 		void assign_function_basic_blocks() const;
