@@ -71,11 +71,110 @@ std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::u
 	return value;
 }
 
-std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction)
+static void substitute_imm_operand(std::vector<binwrite::instruction_t>& instructions,
+								   const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                   binwrite::decoded_operand_t& operand,
+                                   const binwrite::decoded_operand_t::size_type destination_operand_size,
+                                   const binwrite::register_family_t& unused_register_family,
+                                   const binwrite::register_t unused_register)
 {
-	const binwrite::register_family_t unused_register_family = instruction.find_unused_register();
+	const auto imm = operand.imm();
 
-	const auto operands = instruction.visible_operands();
+	binwrite::encoder_operand_t first;
+	binwrite::encoder_operand_t second;
+
+	if (imm.is_signed)
+	{
+		const std::int64_t value = imm.value.s;
+
+		const std::int64_t random = generate_random_signed_constant(destination_operand_size);
+
+		first = encode_signed_imm_operand(overflow_signed_constant(value + random, destination_operand_size));
+		second = encode_signed_imm_operand(random);
+	}
+	else
+	{
+		const std::uint64_t value = imm.value.u;
+
+		const std::uint64_t random = generate_random_unsigned_constant(destination_operand_size);
+
+		first = encode_unsigned_imm_operand(value + random);
+		second = encode_unsigned_imm_operand(random);
+	}
+
+	// instruction will be reassembled with this operand as a register instead
+	operand.set_reg({ .value = unused_register });
+
+	instructions.push_back(push_instruction(unused_register_family.qword).value());
+	instructions.push_back(pushfq_instruction().value());
+
+	instructions.push_back(mov_instruction(first, unused_register).value());
+	instructions.push_back(sub_instruction(second, unused_register).value());
+
+	instructions.push_back(popfq_instruction().value());
+
+	const auto reassembled_instruction = binwrite::make_assembler_instruction(instruction_disassembly);
+
+	instructions.push_back(reassembled_instruction->compile().value());
+	instructions.push_back(pop_instruction(unused_register_family.qword).value());
+}
+
+static void substitute_mem_operand(std::vector<binwrite::instruction_t>& instructions,
+                                   const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                   binwrite::decoded_operand_t& operand,
+                                   const binwrite::register_family_t& unused_register_family)
+{
+	auto mem = operand.mem();
+
+	if (mem.has_displacement)
+	{
+		std::int64_t value = mem.displacement;
+
+		constexpr std::uint32_t displacement_bit_count = 32;
+
+		const std::int64_t random = generate_random_signed_constant(displacement_bit_count);
+
+		if (mem.base == binwrite::register_t::rsp)
+		{
+			value += 16;
+		}
+
+		const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, displacement_bit_count));
+		const auto second = encode_signed_imm_operand(random);
+
+		instructions.push_back(push_instruction(unused_register_family.qword).value());
+		instructions.push_back(pushfq_instruction().value());
+
+		const binwrite::register_t base = mem.base;
+
+		if (base != binwrite::register_t::none)
+		{
+			instructions.push_back(mov_instruction(base, unused_register_family.qword).value());
+			instructions.push_back(add_instruction(first, unused_register_family.qword).value());
+		}
+		else
+		{
+			instructions.push_back(mov_instruction(first, unused_register_family.qword).value());
+		}
+
+		instructions.push_back(sub_instruction(second, unused_register_family.qword).value());
+
+		mem.base = unused_register_family.qword;
+		mem.has_displacement = false;
+		operand.set_mem(mem);
+
+		instructions.push_back(popfq_instruction().value());
+
+		const auto reassembled_instruction = binwrite::make_assembler_instruction(instruction_disassembly);
+
+		instructions.push_back(reassembled_instruction->compile().value());
+		instructions.push_back(pop_instruction(unused_register_family.qword).value());
+	}
+}
+
+static std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction_disassembly)
+{
+	const auto operands = instruction_disassembly.visible_operands();
 
 	if (operands.empty())
 	{
@@ -86,7 +185,7 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 
 	const binwrite::decoded_operand_t::size_type operand_size = destination_operand.size();
 
-	const binwrite::encoder_operand_t unused_register_qword(unused_register_family.qword);
+	const binwrite::register_family_t unused_register_family = instruction_disassembly.find_unused_register();
 	const binwrite::register_t unused_register = unused_register_family.of_size(operand_size);
 
 	std::vector<binwrite::instruction_t> instructions = { };
@@ -105,96 +204,13 @@ std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::dis
 		}
 		else if (operand.is_imm())
 		{
-			const auto imm = operand.imm();
-
-			binwrite::encoder_operand_t first;
-			binwrite::encoder_operand_t second;
-
-			if (imm.is_signed)
-			{
-				const std::int64_t value = imm.value.s;
-
-				const std::int64_t random = generate_random_signed_constant(operand_size);
-
-				first = encode_signed_imm_operand(overflow_signed_constant(value + random, operand_size));
-				second = encode_signed_imm_operand(random);
-			}
-			else
-			{
-				const std::uint64_t value = imm.value.u;
-
-				const std::uint64_t random = generate_random_unsigned_constant(operand_size);
-
-				first = encode_unsigned_imm_operand(value + random);
-				second = encode_unsigned_imm_operand(random);
-			}
-
-			// instruction will be reassembled with this operand as a register instead
-			operand.set_reg({ .value = unused_register });
-
-			instructions.push_back(push_instruction(unused_register_qword).value());
-			instructions.push_back(pushfq_instruction().value());
-
-			instructions.push_back(mov_instruction(first, unused_register).value());
-			instructions.push_back(sub_instruction(second, unused_register).value());
-
-			instructions.push_back(popfq_instruction().value());
-
-			const auto reassembled_instruction = make_assembler_instruction(instruction);
-
-			instructions.push_back(reassembled_instruction->compile().value());
-			instructions.push_back(pop_instruction(unused_register_qword).value());
+			substitute_imm_operand(instructions, instruction_disassembly, operand, operand_size, unused_register_family, unused_register);
 
 			break;
 		}
 		else if (operand.is_mem())
 		{
-			auto mem = operand.mem();
-
-			if (mem.has_displacement)
-			{
-				std::int64_t value = mem.displacement;
-
-				constexpr std::uint32_t displacement_bit_count = 32;
-
-				const std::int64_t random = generate_random_signed_constant(displacement_bit_count);
-
-				if (mem.base == binwrite::register_t::rsp)
-				{
-					value += 16;
-				}
-
-				const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, displacement_bit_count));
-				const auto second = encode_signed_imm_operand(random);
-
-				instructions.push_back(push_instruction(unused_register_qword).value());
-				instructions.push_back(pushfq_instruction().value());
-
-				const binwrite::register_t base = mem.base;
-
-				if (base != binwrite::register_t::none)
-				{
-					instructions.push_back(mov_instruction(base, unused_register_qword).value());
-					instructions.push_back(add_instruction(first, unused_register_qword).value());
-				}
-				else
-				{
-					instructions.push_back(mov_instruction(first, unused_register_qword).value());
-				}
-
-				instructions.push_back(sub_instruction(second, unused_register_qword).value());
-
-				mem.base = unused_register_family.qword;
-				mem.has_displacement = false;
-				operand.set_mem(mem);
-
-				instructions.push_back(popfq_instruction().value());
-
-				const auto reassembled_instruction = make_assembler_instruction(instruction);
-
-				instructions.push_back(reassembled_instruction->compile().value());
-				instructions.push_back(pop_instruction(unused_register_qword).value());
-			}
+			substitute_mem_operand(instructions, instruction_disassembly, operand, unused_register_family);
 
 			break;
 		}

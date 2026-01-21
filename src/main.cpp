@@ -11,7 +11,6 @@
 #include "binwrite/math/random.hpp"
 #include "virtual_machine/virtual_machine.hpp"
 #include "control_flow/control_flow_flattening.hpp"
-#include "control_flow/control_flow_obfuscation.hpp"
 #include "linear_substitution/linear_substitution.hpp"
 #include "mba/mba.hpp"
 #include "opaque_predicate/opaque_predicate.hpp"
