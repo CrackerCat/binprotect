@@ -211,7 +211,6 @@ binwrite::register_family_t binwrite::register_family_t::find(const register_t q
 
 binwrite::register_family_t binwrite::register_family_t::random(const std::span<const register_family_t> excluding)
 {
-
 	register_family_t random_family = none;
 
 	do
