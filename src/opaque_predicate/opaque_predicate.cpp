@@ -2,9 +2,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include <binwrite/math/random.hpp>
 #include "../assembler/assembler.hpp"
 #include "../mba/flag_behaviour.hpp"
-#include "binwrite/math/random.hpp"
 
 static void insert_jz_to_block(binwrite::binary_t& binary,
 	binwrite::basic_block_t& source_block,

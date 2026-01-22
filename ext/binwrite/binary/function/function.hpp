@@ -1,5 +1,5 @@
 #pragma once
-#include "../instruction/basic_block.hpp"
+#include "../../arch/instruction/basic_block.hpp"
 
 namespace binwrite
 {

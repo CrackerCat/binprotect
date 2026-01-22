@@ -1,5 +1,6 @@
 #pragma once
-#include "binary.hpp"
+#include "../binary.hpp"
+#include "../relocation/relocation.hpp"
 
 #include <portable-executable/image.hpp>
 
@@ -43,6 +44,9 @@ namespace binwrite
 		void update_section_headers() override;
 		void update_relocations() override;
 
+		rva_t::value_type process_section_alignment(const std::shared_ptr<section_t>& info,
+		                                            rva_t::value_type section_rva, std::uint32_t section_alignment);
+
 		void copy_sections(std::vector<std::uint8_t>& to, bool decompress);
 
 		void add_misc_rvas(const portable_executable::nt_headers_t* nt_headers);
@@ -52,7 +56,9 @@ namespace binwrite
 		void parse_import_thunk_rvas(const portable_executable::thunk_data_t* original_thunk);
 		void add_debug_rvas(const portable_executable::nt_headers_t* nt_headers);
 		void add_resource_rvas(const portable_executable::nt_headers_t* nt_headers);
-		void parse_resource_directory_rvas(const portable_executable::resource_directory_t* root_directory, const portable_executable::resource_directory_t* directory, std::uint16_t depth = 0);
+		void parse_resource_directory_rvas(const portable_executable::resource_directory_t* root_directory,
+		                                   const portable_executable::resource_directory_t* directory,
+		                                   std::uint16_t depth = 0);
 		void add_export_rvas(const portable_executable::nt_headers_t* nt_headers);
 		void add_relocation_rvas(const portable_executable::nt_headers_t* nt_headers);
 

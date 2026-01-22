@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
 
-#include "../rva/rva.hpp"
+#include "../../binary/rva/rva.hpp"
 #include "instruction.hpp"
 
 std::vector<std::uint8_t> group_instruction_bytes(std::span<const binwrite::instruction_t> instructions);

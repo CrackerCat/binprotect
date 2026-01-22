@@ -21,22 +21,22 @@
     <ClCompile Include="ext\binwrite\binary\binary.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\binary\portable_executable.cpp">
+    <ClCompile Include="ext\binwrite\binary\pe\pe.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ext\binwrite\disassembler\disassembler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\disassembler\mnemonic.cpp">
+    <ClCompile Include="ext\binwrite\arch\mnemonic\mnemonic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\disassembler\register.cpp">
+    <ClCompile Include="ext\binwrite\arch\register\register.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\instruction\basic_block.cpp">
+    <ClCompile Include="ext\binwrite\arch\instruction\basic_block.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\rva\rva.cpp">
+    <ClCompile Include="ext\binwrite\binary\rva\rva.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ext\portable-executable\data_directory.cpp">
@@ -81,7 +81,7 @@
     <ClCompile Include="ext\binwrite\binary\symbols\map_parsing.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\function\function.cpp">
+    <ClCompile Include="ext\binwrite\binary\function\function.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\mba\flag_behaviour.cpp">
@@ -99,6 +99,30 @@
     <ClCompile Include="src\opaque_predicate\opaque_predicate.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\binary_jump_table.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\binary_disassembly.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\binary_rvas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\section\section.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_rvas.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_sections.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\disassembler\decoded_operand.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\disassembler\disassembled_instruction.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp">
@@ -107,25 +131,25 @@
     <ClInclude Include="ext\binwrite\binary\binary.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\binary\portable_executable.hpp">
+    <ClInclude Include="ext\binwrite\binary\pe\pe.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\binwrite\disassembler\disassembler.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\disassembler\mnemonic.hpp">
+    <ClInclude Include="ext\binwrite\arch\mnemonic\mnemonic.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\disassembler\register.hpp">
+    <ClInclude Include="ext\binwrite\arch\register\register.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\instruction\basic_block.hpp">
+    <ClInclude Include="ext\binwrite\arch\instruction\basic_block.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\instruction\instruction.hpp">
+    <ClInclude Include="ext\binwrite\arch\instruction\instruction.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\rva\rva.hpp">
+    <ClInclude Include="ext\binwrite\binary\rva\rva.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\portable-executable\data_directory.hpp">
@@ -194,7 +218,7 @@
     <ClInclude Include="ext\binwrite\binary\symbols\map_parsing.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="ext\binwrite\function\function.hpp">
+    <ClInclude Include="ext\binwrite\binary\function\function.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\mba\flag_behaviour.hpp">
@@ -213,6 +237,21 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\opaque_predicate\opaque_predicate.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\binary\relocation\relocation.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\binary\section\section.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\math\serialize.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\disassembler\decoded_operand.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\disassembler\disassembled_instruction.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

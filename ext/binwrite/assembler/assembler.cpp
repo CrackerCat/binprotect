@@ -1,6 +1,6 @@
 #include "assembler.hpp"
-#include "../instruction/instruction.hpp"
-#include "../disassembler/mnemonic.hpp"
+#include "../arch/instruction/instruction.hpp"
+#include "../arch/mnemonic/mnemonic.hpp"
 
 bool binwrite::encoder_operand_t::is_imm() const
 {

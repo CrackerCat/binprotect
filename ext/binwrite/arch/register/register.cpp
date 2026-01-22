@@ -1,5 +1,113 @@
 #include "register.hpp"
-#include "../math/random.hpp"
+#include "../../math/random.hpp"
+
+binwrite::register_t::value_type binwrite::register_t::value() const
+{
+	return value_;
+}
+
+binwrite::register_t::size_type binwrite::register_t::width() const
+{
+	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
+
+	return ZydisRegisterGetWidth(mode, static_cast<ZydisRegister>(value_));
+}
+
+bool binwrite::register_t::in_same_family(const register_t& other) const
+{
+	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
+
+	const auto enclosing = ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(value_));
+	const auto other_enclosing = ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(other.value_));
+
+	return enclosing == other_enclosing;
+}
+
+binwrite::register_family_t binwrite::register_t::family() const
+{
+	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
+
+	const register_t enclosing_qword(ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(value_)));
+
+	return register_family_t::find(enclosing_qword);
+}
+
+bool binwrite::register_t::is_high_byte() const
+{
+	return value_ == ah ||
+		value_ == bh ||
+		value_ == ch ||
+		value_ == dh;
+}
+
+bool binwrite::register_t::is_general_purpose() const
+{
+	const register_family_t current_family = family();
+
+	return std::ranges::contains(register_family_t::general_purpose, current_family);
+}
+
+bool binwrite::register_t::operator==(const register_t& other) const
+{
+	return value_ == other.value_ || in_same_family(other);
+}
+
+bool binwrite::register_t::operator!=(const register_t& other) const
+{
+	return value_ != other.value_ && !in_same_family(other);
+}
+
+binwrite::register_t::operator ZydisRegister_() const
+{
+	return static_cast<ZydisRegister>(value_);
+}
+
+binwrite::register_t binwrite::register_family_t::of_size(const register_t::size_type size) const
+{
+	switch (size)
+	{
+	case 64:
+		return qword;
+	case 32:
+		return dword;
+	case 16:
+		return word;
+	case 8:
+		return byte;
+	default:
+		return register_t::none;
+	}
+}
+
+bool binwrite::register_family_t::operator==(const register_family_t& other) const
+{
+	return qword == other.qword;
+}
+
+binwrite::register_family_t binwrite::register_family_t::find(const register_t qword)
+{
+	const auto family = std::ranges::find_if(families,
+		[qword](const register_family_t& current_family)
+		{
+			return current_family.qword == qword;
+		}
+	);
+
+	return family != families.end() ? *family : none;
+}
+
+binwrite::register_family_t binwrite::register_family_t::random(const std::span<const register_family_t> excluding)
+{
+	register_family_t random_family = none;
+
+	do
+	{
+		random_family = math::random_entry<register_family_t>(general_purpose);
+
+	} while (std::ranges::contains(excluding, random_family));
+
+	return random_family;
+}
 
 const binwrite::register_t binwrite::register_t::none = register_t(ZYDIS_REGISTER_NONE);
 const binwrite::register_t binwrite::register_t::rip = register_t(ZYDIS_REGISTER_RIP);
@@ -111,113 +219,5 @@ const binwrite::register_family_t binwrite::register_family_t::fourteen = { .qwo
 const binwrite::register_family_t binwrite::register_family_t::fifteen = { .qword = register_t::r15, .dword = register_t::r15d, .word = register_t::r15w, .byte = register_t::r15b, .high_byte = register_t::none };
 const binwrite::register_family_t binwrite::register_family_t::flags = { .qword = register_t::rflags, .dword = register_t::eflags, .word = register_t::flags, .byte = register_t::none, .high_byte = register_t::none };
 
-const std::array<binwrite::register_family_t, 15> binwrite::register_family_t::general_purpose = { ax, cx, dx, bx, si, di, bp, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen};
+const std::array<binwrite::register_family_t, 15> binwrite::register_family_t::general_purpose = { ax, cx, dx, bx, si, di, bp, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };
 const std::array<binwrite::register_family_t, 16> binwrite::register_family_t::families = { ax, cx, dx, bx, si, di, bp, sp, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };
-
-binwrite::register_t::value_type binwrite::register_t::value() const
-{
-	return value_;
-}
-
-binwrite::register_t::size_type binwrite::register_t::width() const
-{
-	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
-
-	return ZydisRegisterGetWidth(mode, static_cast<ZydisRegister>(value_));
-}
-
-bool binwrite::register_t::in_same_family(const register_t& other) const
-{
-	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
-
-	const auto enclosing = ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(value_));
-	const auto other_enclosing = ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(other.value_));
-
-	return enclosing == other_enclosing;
-}
-
-binwrite::register_family_t binwrite::register_t::family() const
-{
-	constexpr auto mode = ZYDIS_MACHINE_MODE_LONG_64;
-
-	const register_t enclosing_qword(ZydisRegisterGetLargestEnclosing(mode, static_cast<ZydisRegister>(value_)));
-
-	return register_family_t::find(enclosing_qword);
-}
-
-bool binwrite::register_t::is_high_byte() const
-{
-	return value_ == ah ||
-		value_ == bh ||
-		value_ == ch ||
-		value_ == dh;
-}
-
-bool binwrite::register_t::is_general_purpose() const
-{
-	const register_family_t current_family = family();
-
-	return std::ranges::contains(register_family_t::general_purpose, current_family);
-}
-
-bool binwrite::register_t::operator==(const register_t& other) const
-{
-	return value_ == other.value_ || in_same_family(other);
-}
-
-bool binwrite::register_t::operator!=(const register_t& other) const
-{
-	return value_ != other.value_ && !in_same_family(other);
-}
-
-binwrite::register_t::operator ZydisRegister_() const
-{
-	return static_cast<ZydisRegister>(value_);
-}
-
-binwrite::register_t binwrite::register_family_t::of_size(const register_t::size_type size) const
-{
-	switch (size)
-	{
-	case 64:
-		return qword;
-	case 32:
-		return dword;
-	case 16:
-		return word;
-	case 8:
-		return byte;
-	default:
-		return register_t::none;
-	}
-}
-
-bool binwrite::register_family_t::operator==(const register_family_t& other) const
-{
-	return qword == other.qword;
-}
-
-binwrite::register_family_t binwrite::register_family_t::find(const register_t qword)
-{
-	const auto family = std::ranges::find_if(families,
-		[qword](const register_family_t& current_family)
-		{
-			return current_family.qword == qword;
-		}
-	);
-
-	return family != families.end() ? *family : none;
-}
-
-binwrite::register_family_t binwrite::register_family_t::random(const std::span<const register_family_t> excluding)
-{
-	register_family_t random_family = none;
-
-	do
-	{
-		random_family = math::random_entry<register_family_t>(general_purpose);
-
-	} while (std::ranges::contains(excluding, random_family));
-
-	return random_family;
-}

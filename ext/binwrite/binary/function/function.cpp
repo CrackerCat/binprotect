@@ -1,5 +1,5 @@
 #include "function.hpp"
-#include "../binary/binary.hpp"
+#include "../binary.hpp"
 
 void binwrite::function_t::add_basic_block(std::shared_ptr<basic_block_t> basic_block)
 {

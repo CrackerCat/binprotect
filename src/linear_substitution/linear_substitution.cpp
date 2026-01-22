@@ -1,11 +1,10 @@
 #include "linear_substitution.hpp"
 #include "../assembler/assembler.hpp"
 
-#include <binwrite/disassembler/mnemonic.hpp>
 #include <binwrite/math/random.hpp>
 #include <spdlog/spdlog.h>
 
-std::int64_t generate_random_signed_constant(const std::uint32_t bit_count)
+static std::int64_t generate_random_signed_constant(const std::uint32_t bit_count)
 {
 	switch (bit_count)
 	{
@@ -22,7 +21,7 @@ std::int64_t generate_random_signed_constant(const std::uint32_t bit_count)
 	return 0;
 }
 
-std::int64_t overflow_signed_constant(const std::int64_t value, const std::uint32_t bit_count)
+static std::int64_t overflow_signed_constant(const std::int64_t value, const std::uint32_t bit_count)
 {
 	switch (bit_count)
 	{
@@ -38,7 +37,7 @@ std::int64_t overflow_signed_constant(const std::int64_t value, const std::uint3
 	return value;
 }
 
-std::uint64_t generate_random_unsigned_constant(const std::uint32_t bit_count)
+static std::uint64_t generate_random_unsigned_constant(const std::uint32_t bit_count)
 {
 	switch (bit_count)
 	{
@@ -55,7 +54,7 @@ std::uint64_t generate_random_unsigned_constant(const std::uint32_t bit_count)
 	return 0;
 }
 
-std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::uint32_t bit_count)
+static std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::uint32_t bit_count)
 {
 	switch (bit_count)
 	{
@@ -71,15 +70,8 @@ std::uint64_t overflow_unsigned_constant(const std::uint64_t value, const std::u
 	return value;
 }
 
-static void substitute_imm_operand(std::vector<binwrite::instruction_t>& instructions,
-								   const binwrite::disassembled_instruction_t& instruction_disassembly,
-                                   binwrite::decoded_operand_t& operand,
-                                   const binwrite::decoded_operand_t::size_type destination_operand_size,
-                                   const binwrite::register_family_t& unused_register_family,
-                                   const binwrite::register_t unused_register)
+static std::array<binwrite::encoder_operand_t, 2> generate_obfuscated_imm_operands(const binwrite::decoded_operand_t::imm_t imm, const binwrite::decoded_operand_t::size_type destination_operand_size)
 {
-	const auto imm = operand.imm();
-
 	binwrite::encoder_operand_t first;
 	binwrite::encoder_operand_t second;
 
@@ -102,14 +94,28 @@ static void substitute_imm_operand(std::vector<binwrite::instruction_t>& instruc
 		second = encode_unsigned_imm_operand(random);
 	}
 
+	return { first, second };
+}
+
+static void substitute_imm_operand(std::vector<binwrite::instruction_t>& instructions,
+								   const binwrite::disassembled_instruction_t& instruction_disassembly,
+                                   binwrite::decoded_operand_t& operand,
+                                   const binwrite::decoded_operand_t::size_type destination_operand_size,
+                                   const binwrite::register_family_t& unused_register_family,
+                                   const binwrite::register_t unused_register)
+{
+	const auto imm = operand.imm();
+
+	const auto operands = generate_obfuscated_imm_operands(imm, destination_operand_size);
+
 	// instruction will be reassembled with this operand as a register instead
 	operand.set_reg({ .value = unused_register });
 
 	instructions.push_back(push_instruction(unused_register_family.qword).value());
 	instructions.push_back(pushfq_instruction().value());
 
-	instructions.push_back(mov_instruction(first, unused_register).value());
-	instructions.push_back(sub_instruction(second, unused_register).value());
+	instructions.push_back(mov_instruction(operands[0], unused_register).value());
+	instructions.push_back(sub_instruction(operands[1], unused_register).value());
 
 	instructions.push_back(popfq_instruction().value());
 
@@ -126,50 +132,47 @@ static void substitute_mem_operand(std::vector<binwrite::instruction_t>& instruc
 {
 	auto mem = operand.mem();
 
-	if (mem.has_displacement)
+	std::int64_t value = mem.has_displacement ? mem.displacement : 0;
+
+	constexpr std::uint32_t displacement_bit_count = 32;
+
+	const std::int64_t random = generate_random_signed_constant(displacement_bit_count);
+
+	if (mem.base == binwrite::register_t::rsp)
 	{
-		std::int64_t value = mem.displacement;
-
-		constexpr std::uint32_t displacement_bit_count = 32;
-
-		const std::int64_t random = generate_random_signed_constant(displacement_bit_count);
-
-		if (mem.base == binwrite::register_t::rsp)
-		{
-			value += 16;
-		}
-
-		const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, displacement_bit_count));
-		const auto second = encode_signed_imm_operand(random);
-
-		instructions.push_back(push_instruction(unused_register_family.qword).value());
-		instructions.push_back(pushfq_instruction().value());
-
-		const binwrite::register_t base = mem.base;
-
-		if (base != binwrite::register_t::none)
-		{
-			instructions.push_back(mov_instruction(base, unused_register_family.qword).value());
-			instructions.push_back(add_instruction(first, unused_register_family.qword).value());
-		}
-		else
-		{
-			instructions.push_back(mov_instruction(first, unused_register_family.qword).value());
-		}
-
-		instructions.push_back(sub_instruction(second, unused_register_family.qword).value());
-
-		mem.base = unused_register_family.qword;
-		mem.has_displacement = false;
-		operand.set_mem(mem);
-
-		instructions.push_back(popfq_instruction().value());
-
-		const auto reassembled_instruction = binwrite::make_assembler_instruction(instruction_disassembly);
-
-		instructions.push_back(reassembled_instruction->compile().value());
-		instructions.push_back(pop_instruction(unused_register_family.qword).value());
+		value += 16;
 	}
+
+	const auto first = encode_signed_imm_operand(overflow_signed_constant(value + random, displacement_bit_count));
+	const auto second = encode_signed_imm_operand(random);
+
+	instructions.push_back(push_instruction(unused_register_family.qword).value());
+	instructions.push_back(pushfq_instruction().value());
+
+	const binwrite::register_t base = mem.base;
+
+	if (base != binwrite::register_t::none)
+	{
+		instructions.push_back(mov_instruction(base, unused_register_family.qword).value());
+		instructions.push_back(add_instruction(first, unused_register_family.qword).value());
+	}
+	else
+	{
+		instructions.push_back(mov_instruction(first, unused_register_family.qword).value());
+	}
+
+	instructions.push_back(sub_instruction(second, unused_register_family.qword).value());
+
+	mem.base = unused_register_family.qword;
+	mem.has_displacement = false;
+	operand.set_mem(mem);
+
+	instructions.push_back(popfq_instruction().value());
+
+	const auto reassembled_instruction = binwrite::make_assembler_instruction(instruction_disassembly);
+
+	instructions.push_back(reassembled_instruction->compile().value());
+	instructions.push_back(pop_instruction(unused_register_family.qword).value());
 }
 
 static std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction_disassembly)

@@ -4,7 +4,7 @@
 #include <span>
 #include <vector>
 
-#include <binwrite/instruction/instruction.hpp>
+#include <binwrite/arch/instruction/instruction.hpp>
 #include <binwrite/assembler/assembler.hpp>
 #include <binwrite/binary/binary.hpp>
 #include <binwrite/math/random.hpp>
@@ -149,8 +149,7 @@ protected:
 	[[nodiscard]] hardware_register_t read_operand(std::vector<binwrite::instruction_t>& instructions,
 	                                               size_type index);
 
-	void load_flags(std::vector<binwrite::instruction_t>& instructions, std::int64_t operand_offset,
-		const std::span<const binwrite::encoder_operand_t> operands);
+	void load_flags(std::vector<binwrite::instruction_t>& instructions, std::int64_t operand_offset);
 
 	void save_flags(std::vector<binwrite::instruction_t>& instructions, std::int64_t operand_offset);
 

@@ -2,8 +2,8 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
-#include "../binary/binary.hpp"
-#include "../disassembler/disassembler.hpp"
+#include "../../disassembler/disassembler.hpp"
+#include "../binary.hpp"
 
 binwrite::rva_t::value_type binwrite::rva_t::value() const
 {

@@ -1,71 +1,18 @@
 #pragma once
-#include "../rva/rva.hpp"
-#include "../function/function.hpp"
-#include "../instruction/basic_block.hpp"
+#include "function/function.hpp"
+#include "section/section.hpp"
 
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <memory>
-#include <optional>
 #include <span>
 #include <queue>
 
 namespace binwrite
 {
-	class section_t
-	{
-	public:
-		using size_type = std::uint32_t;
-
-		section_t() = default;
-
-		explicit section_t(const rva_t rva, const size_type size, const size_type padding, const bool code_section)
-				:	rva_(rva),
-					size_(size),
-					padding_(padding),
-					code_(code_section) { }
-
-		void process_disruption(rva_t disruption_rva, rva_t::size_type disruption_size);
-
-		void insert(binary_t& binary, rva_t section_offset, std::span<const std::uint8_t> data);
-
-		[[nodiscard]] rva_t rva() const;
-		[[nodiscard]] rva_t end_rva() const;
-
-		[[nodiscard]] bool contains(rva_t rva) const;
-		[[nodiscard]] bool code() const;
-
-		[[nodiscard]] size_type size() const;
-		void set_size(size_type size);
-
-		[[nodiscard]] size_type padding() const;
-		void set_padding(size_type padding);
-		void remove_padding(size_type size);
-
-	protected:
-		rva_t rva_;
-		size_type size_;
-		size_type padding_;
-		bool code_;
-	};
-
-	class relocation_t
-	{
-	public:
-		using reloc_type = std::uint16_t;
-
-		relocation_t() = default;
-
-		explicit relocation_t(std::shared_ptr<rva_t> target)
-				:	target_(std::move(target)) { }
-
-		[[nodiscard]] rva_t target() const;
-		[[nodiscard]] virtual reloc_type type() const = 0;
-
-	protected:
-		std::shared_ptr<rva_t> target_;
-	};
+	class relocation_t;
+	class section_t;
 
 	class binary_t
 	{
@@ -159,6 +106,11 @@ namespace binwrite
 		virtual void find_sections() = 0;
 		virtual void update_section_headers() = 0;
 		virtual void update_relocations() = 0;
+
+		void process_instruction_rip_relativity(const disassembled_instruction_t& disassembled_instruction,
+		                                        rva_t instruction_rva, rva_t next_instruction_rva);
+
+		void collect_basic_block_instructions(const disassembler_t& disassembler, basic_block_t& basic_block);
 
 		bool process_multi_level_jump_table(const basic_block_t& basic_block, rva_t entry_table_base,
 		                                    basic_block_t::size_type mov_index);

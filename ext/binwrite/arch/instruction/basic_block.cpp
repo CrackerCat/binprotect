@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "../binary/binary.hpp"
+#include "../../binary/binary.hpp"
 
 binwrite::rva_t binwrite::basic_block_t::end_rva() const
 {

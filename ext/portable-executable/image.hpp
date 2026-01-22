@@ -48,7 +48,7 @@ namespace portable_executable
 		}
 
 		template <class t>
-		t calculate_alignment(t address, t alignment)
+		static t calculate_alignment(t address, t alignment)
 		{
 			const t remainder = address % alignment;
 

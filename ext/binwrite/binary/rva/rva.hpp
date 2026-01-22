@@ -3,8 +3,8 @@
 #include <expected>
 #include <memory>
 
-#include "../assembler/assembler.hpp"
-#include "../instruction/instruction.hpp"
+#include "../../assembler/assembler.hpp"
+#include "../../arch/instruction/instruction.hpp"
 
 namespace binwrite
 {

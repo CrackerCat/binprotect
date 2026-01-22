@@ -1,0 +1,13 @@
+#pragma once
+#include <span>
+
+namespace binwrite::math
+{
+	template <class T>
+	std::span<const std::uint8_t> serialize_bytes(const T* const info)
+	{
+		const auto start = reinterpret_cast<const std::uint8_t*>(info);
+
+		return { start, start + sizeof(T) };
+	}
+}

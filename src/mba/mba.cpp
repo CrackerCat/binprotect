@@ -1,13 +1,11 @@
 #include "mba.hpp"
 #include "flag_behaviour.hpp"
 
+#include <binwrite/math/random.hpp>
 #include "../assembler/assembler.hpp"
 
-#include <binwrite/disassembler/mnemonic.hpp>
 #include <functional>
 #include <spdlog/spdlog.h>
-
-#include "binwrite/math/random.hpp"
 
 using mba_callback_t = std::function<void(std::vector<binwrite::instruction_t>& instructions,
 	const binwrite::encoder_operand_t& x,

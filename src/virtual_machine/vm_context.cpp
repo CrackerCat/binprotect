@@ -302,7 +302,7 @@ void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruct
 
 	if (uses_flags)
 	{
-		load_flags(instructions, operand_offset, operands);
+		load_flags(instructions, operand_offset);
 	}
 
 	binwrite::assembler_instruction_t reassembled_instruction = make_assembler_instruction(instruction_disassembly).value();
@@ -390,7 +390,7 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 			instructions.push_back(mov_instruction(reg, sized_holder).value());
 			instructions.push_back(add_instruction(encode_signed_imm_operand(displacement), sized_holder).value());
 
-			return sized_holder;//encode_stack_mem_operand(displacement, reg.width());
+			return sized_holder;
 		}
 
 		return register_to_stack(family.qword, 64, stack_offset);
@@ -451,7 +451,8 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 }
 
 binwrite::encoder_operand_t vm_context_t::register_to_stack(const binwrite::register_t reg,
-	const std::uint16_t operand_width, std::int64_t additional_displacement) const
+                                                            const std::uint16_t operand_width,
+                                                            std::int64_t additional_displacement) const
 {
 	const auto stack_offset = register_stack_offset(reg);
 
@@ -477,7 +478,7 @@ binwrite::encoder_operand_t vm_context_t::flags_to_stack(const std::int64_t addi
 }
 
 hardware_register_t vm_context_t::read_operand(std::vector<binwrite::instruction_t>& instructions,
-	const size_type index)
+                                               const size_type index)
 {
 	const binwrite::encoder_operand_t stack_memory = encode_stack_mem_operand(static_cast<std::int64_t>(operand_size * index), operand_size);
 
@@ -488,8 +489,7 @@ hardware_register_t vm_context_t::read_operand(std::vector<binwrite::instruction
 	return holder;
 }
 
-void vm_context_t::load_flags(std::vector<binwrite::instruction_t>& instructions, const std::int64_t operand_offset,
-	const std::span<const binwrite::encoder_operand_t> operands)
+void vm_context_t::load_flags(std::vector<binwrite::instruction_t>& instructions, const std::int64_t operand_offset)
 {
 	const hardware_register_t holder = random_hardware_register();
 

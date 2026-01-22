@@ -1,6 +1,6 @@
 #pragma once
 #include <binwrite/assembler/assembler.hpp>
-#include <binwrite/disassembler/mnemonic.hpp>
+#include <binwrite/arch/mnemonic/mnemonic.hpp>
 
 inline std::optional<binwrite::instruction_t> compile_assembler_instruction(const binwrite::mnemonic_t mnemonic, const std::span<const binwrite::encoder_operand_t> operands)
 {

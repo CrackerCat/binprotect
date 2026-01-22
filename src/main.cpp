@@ -1,4 +1,4 @@
-#include <binwrite/binary/portable_executable.hpp>
+#include <binwrite/binary/pe/pe.hpp>
 #include <binwrite/binary/symbols/map_parsing.hpp>
 
 #include <spdlog/spdlog.h>
@@ -12,10 +12,10 @@
 #include "virtual_machine/virtual_machine.hpp"
 #include "control_flow/control_flow_flattening.hpp"
 #include "linear_substitution/linear_substitution.hpp"
-#include "mba/mba.hpp"
 #include "opaque_predicate/opaque_predicate.hpp"
+#include "mba/mba.hpp"
 
-std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
+static std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
 {
 	std::ifstream file(path, std::ios::binary);
 
@@ -27,7 +27,7 @@ std::vector<std::uint8_t> read_file_from_disk(const std::string& path)
 	return { };
 }
 
-void write_file_to_disk(const std::string& path, const std::vector<std::uint8_t>& buffer)
+static void write_file_to_disk(const std::string& path, const std::vector<std::uint8_t>& buffer)
 {
 	std::ofstream file(path, std::ios::binary);
 
@@ -37,7 +37,7 @@ void write_file_to_disk(const std::string& path, const std::vector<std::uint8_t>
 	}
 }
 
-void erase_unused_data_directories(binwrite::portable_executable_t& pe)
+static void erase_exception_directory(binwrite::portable_executable_t& pe)
 {
 	const auto nt_headers = pe.image()->nt_headers();
 
@@ -52,29 +52,7 @@ void erase_unused_data_directories(binwrite::portable_executable_t& pe)
 	}
 }
 
-void fix_security_directory(binwrite::portable_executable_t& pe)
-{
-	const auto image = pe.image();
-	const auto nt_headers = image->nt_headers();
-
-	auto& security_directory = nt_headers->optional_header.data_directories.security_directory;
-
-	if (!security_directory.present())
-	{
-		return;
-	}
-
-	if (const auto resolved_rva = image->ptr_to_rva(security_directory.virtual_address))
-	{
-		security_directory.virtual_address = *resolved_rva;
-	}
-	else
-	{
-		spdlog::warn("unable to redirect raw ptr of security directory");
-	}
-}
-
-void mutate_basic_block(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block)
+static void mutate_basic_block(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block)
 {
 	binprotect::linear_substitution::do_pass(binary, basic_block);
 
@@ -103,8 +81,7 @@ std::int32_t main()
 
 	binwrite::portable_executable_t pe(std::move(buffer));
 
-	erase_unused_data_directories(pe);
-	//fix_security_directory(pe);
+	erase_exception_directory(pe);
 
 	pe.decompress();
 	pe.parse();
