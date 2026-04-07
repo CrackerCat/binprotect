@@ -60,6 +60,14 @@ const portable_executable::image_t* binwrite::portable_executable_t::image() con
 	return reinterpret_cast<const portable_executable::image_t*>(data());
 }
 
+bool binwrite::portable_executable_t::has_exceptions_directory() const
+{
+	const auto img = image();
+	const auto& data_directories = img->nt_headers()->optional_header.data_directories;
+
+	return data_directories.exception_directory.present();
+}
+
 static reloc_pages_t collect_reloc_pages(const std::span<const std::shared_ptr<binwrite::relocation_t>> relocations)
 {
 	reloc_pages_t reloc_pages;
@@ -93,7 +101,7 @@ static void compile_relocation_block_descriptor(std::vector<std::uint8_t>& bytes
 			.size_of_block = block_size
 	};
 
-	const auto serialized_block_descriptor = binwrite::math::serialize_bytes(&block_descriptor);
+	const auto serialized_block_descriptor = binwrite::math::serialize_bytes(block_descriptor);
 
 	bytes.insert_range(bytes.end(), serialized_block_descriptor);
 }
@@ -102,7 +110,7 @@ static void process_relocation_block_padding(std::vector<portable_executable::re
 {
 	const std::uint64_t entry_count = entry_descriptors.size();
 
-	if ((entry_count % 2) != 0)
+	if (entry_count % 2 != 0)
 	{
 		constexpr portable_executable::relocation_entry_descriptor_t padding_entry = {
 			.offset = 0, .type = portable_executable::relocation_type_t::absolute
@@ -118,15 +126,15 @@ static std::vector<std::uint8_t> compile_relocation_directory(reloc_pages_t& rel
 
 	for (auto& [pfn, entry_descriptors] : reloc_pages)
 	{
+		process_relocation_block_padding(entry_descriptors);
+
 		const std::uint16_t entry_count = static_cast<std::uint16_t>(entry_descriptors.size());
 
 		compile_relocation_block_descriptor(bytes, pfn, entry_count);
 
-		process_relocation_block_padding(entry_descriptors);
-
 		for (const auto& entry_descriptor : entry_descriptors)
 		{
-			const auto serialized_entry_descriptor = binwrite::math::serialize_bytes(&entry_descriptor);
+			const auto serialized_entry_descriptor = binwrite::math::serialize_bytes(entry_descriptor);
 
 			bytes.insert_range(bytes.end(), serialized_entry_descriptor);
 		}
@@ -151,10 +159,10 @@ void binwrite::portable_executable_t::update_relocations()
 
 	const auto new_directory = compile_relocation_directory(reloc_pages);
 
-	insert(directory_rva, static_cast<rva_t::size_type>(new_directory.size()));
-	erase(directory_rva, static_cast<rva_t::size_type>(relocation_directory_header.size));
+	const rva_t erasal_rva(directory_rva.value() + static_cast<std::uint32_t>(new_directory.size()));
+
+	insert(directory_rva, new_directory);
+	erase(erasal_rva, static_cast<rva_t::size_type>(relocation_directory_header.size));
 
 	image()->nt_headers()->optional_header.data_directories.basereloc_directory.size = static_cast<std::uint32_t>(new_directory.size());
-
-	std::memcpy(data() + directory_rva.value(), new_directory.data(), new_directory.size());
 }

@@ -23,6 +23,16 @@ namespace binwrite
 			return rva_;
 		}
 
+		[[nodiscard]] bool should_skip() const
+		{
+			return skip_;
+		}
+
+		void set_skip(const bool state)
+		{
+			skip_ = state;
+		}
+
 		[[nodiscard]] rva_t end_rva() const;
 		[[nodiscard]] rva_t instruction_rva(size_type index) const;
 		[[nodiscard]] size_type instruction_index(rva_t target_rva) const;
@@ -86,7 +96,13 @@ namespace binwrite
 		}
 
 	protected:
+		void rebuild_offsets();
+
 		std::shared_ptr<rva_t> rva_;
 		std::vector<instruction_t> instructions_;
+		std::vector<rva_t::value_type> instruction_offsets_;
+		rva_t::value_type total_size_ = 0;
+
+		bool skip_ = false;
 	};
 }

@@ -2,6 +2,7 @@
 #include <memory>
 #include <deque>
 #include <span>
+#include <string>
 #include <vector>
 
 #include <binwrite/arch/instruction/instruction.hpp>
@@ -18,6 +19,13 @@ struct vm_instruction_t
 	std::vector<binwrite::instruction_t> load = { };
 	std::vector<binwrite::instruction_t> handler = { };
 	std::vector<binwrite::instruction_t> unload = { };
+};
+
+struct vm_segment_t
+{
+	std::shared_ptr<binwrite::basic_block_t> entry_block;
+	std::shared_ptr<binwrite::basic_block_t> exit_block;
+	std::vector<binwrite::register_family_t> stack_registers;
 };
 
 class vm_context_t : public std::enable_shared_from_this<vm_context_t>
@@ -40,19 +48,20 @@ public:
 		}
 	}
 
-	void enter_virtualized_state(binwrite::binary_t& binary, binwrite::rva_t rva);
+	void enter_virtualized_state(binwrite::binary_t& binary);
 	void exit_virtualized_state(binwrite::binary_t& binary);
 
 	void process_instruction(const binwrite::disassembled_instruction_t& instruction_disassembly);
+	void compile_instruction(binwrite::binary_t& binary);
 
-	void compile_instruction(binwrite::binary_t& binary, binwrite::rva_t rva);
+	void set_insertion_rva(std::shared_ptr<binwrite::rva_t> rva);
 
 	[[nodiscard]] hardware_register_t random_hardware_register();
 	void free_hardware_register(const hardware_register_t& hardware_register);
 
 	[[nodiscard]] size_type initial_stack_size() const
 	{
-		constexpr size_type special_register_count = 2; // rflags, return address
+		constexpr size_type special_register_count = 3; // rbp, rflags, return address
 
 		const size_type total_register_count = stack_registers_.size() + special_register_count;
 
@@ -77,6 +86,16 @@ public:
 	[[nodiscard]] std::span<const std::shared_ptr<binwrite::basic_block_t>> basic_blocks() const
 	{
 		return basic_blocks_;
+	}
+
+	[[nodiscard]] const std::vector<binwrite::register_family_t>& stack_register_order() const
+	{
+		return stack_registers_;
+	}
+
+	[[nodiscard]] const std::vector<vm_segment_t>& segments() const
+	{
+		return segments_;
 	}
 
 protected:
@@ -250,11 +269,14 @@ protected:
 	vm_instruction_t current_instruction_ = { };
 	std::shared_ptr<binwrite::basic_block_t> previous_block_ = { };
 	std::shared_ptr<binwrite::basic_block_t> entry_block_ = { };
+	std::vector<vm_segment_t> segments_ = { };
 
 	std::vector<std::shared_ptr<binwrite::basic_block_t>> basic_blocks_ = { };
 
 	std::vector<binwrite::register_family_t> stack_registers_ = { };
 	std::deque<binwrite::register_family_t> free_registers_ = { };
+	std::vector<hardware_register_t> temporary_holding_registers_ = { };
 
+	std::shared_ptr<binwrite::rva_t> insertion_rva_;
 	bool virtualized_state_ = false;
 };

@@ -5,7 +5,7 @@ static std::shared_ptr<binwrite::basic_block_t> previous_basic_block(const binwr
 	const binwrite::rva_t current_block_rva = *basic_block.rva();
 	const binwrite::rva_t last_block_rva(current_block_rva.value() - 1);
 
-	return binary.is_inside_basic_block(last_block_rva);
+	return binary.find_containing_basic_block(last_block_rva);
 }
 
 static std::int32_t estimate_jump_table_count(const binwrite::binary_t& binary, const binwrite::basic_block_t& basic_block)
@@ -121,7 +121,7 @@ bool binwrite::binary_t::process_multi_level_jump_table(const basic_block_t& bas
 	const std::int32_t inner_table_count = static_cast<std::int32_t>(inner_table_size / 4);
 
 	add_rva_ref(std::make_shared<msvc_jmp_table_ref_t>(index_table_base, movzx_rva, movzx_disassembly.size()));
-	add_msvc_jmp_table_ref(entry_table_base, inner_table_count);
+	add_msvc_jmp_table_ref(entry_table_base, inner_table_count, basic_block.last_instruction_rva());
 
 	return true;
 }
@@ -156,12 +156,12 @@ void binwrite::binary_t::process_jump_table_instruction(const basic_block_t& bas
 
 		if (!process_multi_level_jump_table(basic_block, *table_base, mov_index))
 		{
-			add_msvc_jmp_table_ref(*table_base, count);
+			add_msvc_jmp_table_ref(*table_base, count, basic_block.last_instruction_rva());
 		}
 	}
 	else if (const auto table_base = resolve_instruction_rva(*lea_disassembly, basic_block.instruction_rva(lea_index)))
 	{
-		add_llvm_jmp_table_ref(rva_t{ *table_base }, count);
+		add_llvm_jmp_table_ref(rva_t{ *table_base }, count, basic_block.last_instruction_rva());
 	}
 }
 
@@ -187,7 +187,7 @@ void binwrite::binary_t::find_jump_tables(const basic_block_t& basic_block)
 	}
 }
 
-void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base, const std::int32_t count)
+void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base, const std::int32_t count, const rva_t dispatcher_rva)
 {
 	const auto table_base_rva = add_rva(table_base);
 
@@ -208,6 +208,7 @@ void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base, const st
 
 		const auto ref = std::make_shared<llvm_jmp_table_entry_t>(target_rva, table_entry, table_base_rva);
 
+		add_jump_table_target(dispatcher_rva, target_rva);
 		add_to_disassembly_queue(target_rva);
 		add_rva_ref(ref);
 
@@ -215,7 +216,7 @@ void binwrite::binary_t::add_llvm_jmp_table_ref(const rva_t table_base, const st
 	}
 }
 
-void binwrite::binary_t::add_msvc_jmp_table_ref(const rva_t table_base, const std::int32_t count)
+void binwrite::binary_t::add_msvc_jmp_table_ref(const rva_t table_base, const std::int32_t count, const rva_t dispatcher_rva)
 {
 	rva_t table_entry = table_base;
 
@@ -232,6 +233,7 @@ void binwrite::binary_t::add_msvc_jmp_table_ref(const rva_t table_base, const st
 
 		const auto ref = add_data_rva_ref(entry);
 
+		add_jump_table_target(dispatcher_rva, ref->target());
 		add_to_disassembly_queue(ref->target());
 
 		table_entry.set_value(table_entry.value() + sizeof(llvm_jmp_table_entry_t::size_type));

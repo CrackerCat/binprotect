@@ -6,37 +6,34 @@
 
 binwrite::rva_t binwrite::basic_block_t::end_rva() const
 {
-	return instruction_rva(count());
+	return rva_t{ rva_->value() + total_size_ };
 }
 
 [[nodiscard]] binwrite::rva_t binwrite::basic_block_t::instruction_rva(const size_type index) const
 {
-	rva_t::value_type rva = rva_->value();
-
-	for (size_type i = 0; i < count() && i < index; i++)
+	if (index <= 0)
 	{
-		const auto instruction = instructions_[i];
-
-		rva += instruction.size();
+		return *rva_;
 	}
 
-	return rva_t{ rva };
+	if (index >= count())
+	{
+		return end_rva();
+	}
+
+	return rva_t{ rva_->value() + instruction_offsets_.at(index) };
 }
 
 binwrite::basic_block_t::size_type binwrite::basic_block_t::instruction_index(const rva_t target_rva) const
 {
-	rva_t::value_type rva = rva_->value();
+	const auto target_offset = target_rva.value() - rva_->value();
 
 	for (size_type i = 0; i < count(); i++)
 	{
-		if (rva == target_rva.value())
+		if (instruction_offsets_[i] == target_offset)
 		{
 			return i;
 		}
-
-		const auto instruction = instructions_[i];
-
-		rva += instruction.size();
 	}
 
 	return -1;
@@ -153,6 +150,7 @@ void binwrite::basic_block_t::push(binary_t& binary, const std::span<const instr
 	}
 
 	instructions_.insert_range(instructions_.end(), instructions);
+	rebuild_offsets();
 }
 
 void binwrite::basic_block_t::insert(binary_t& binary, const instruction_t& instruction, const size_type index, const bool inclusive)
@@ -170,6 +168,7 @@ void binwrite::basic_block_t::insert(binary_t& binary, const std::span<const ins
 	const auto begin = instructions_.begin() + index;
 
 	instructions_.insert_range(begin, instructions);
+	rebuild_offsets();
 }
 
 void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, const size_type count, const bool affects_buffer)
@@ -187,6 +186,7 @@ void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, con
 	}
 
 	instructions_.erase(first_instruction, first_instruction + count);
+	rebuild_offsets();
 }
 
 void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, const bool affects_buffer)
@@ -197,4 +197,18 @@ void binwrite::basic_block_t::erase(binary_t& binary, const size_type index, con
 void binwrite::basic_block_t::clear(binary_t& binary)
 {
 	erase(binary, 0, count(), true);
+}
+
+void binwrite::basic_block_t::rebuild_offsets()
+{
+	instruction_offsets_.clear();
+	instruction_offsets_.reserve(instructions_.size());
+
+	total_size_ = 0;
+
+	for (const auto& instruction : instructions_)
+	{
+		instruction_offsets_.push_back(total_size_);
+		total_size_ += instruction.size();
+	}
 }

@@ -10,7 +10,8 @@ bool binwrite::disassembled_instruction_t::rip_relative() const
 {
 	for (const auto& operand : operands_)
 	{
-		if ((operand.is_reg() && operand.reg().value == register_t::rip) || (operand.is_mem() && operand.mem().base == register_t::rip))
+		if ((operand.is_reg() && operand.reg().value == register_t::rip) ||
+			(operand.is_mem() && operand.mem().base == register_t::rip))
 		{
 			return true;
 		}
@@ -21,25 +22,36 @@ bool binwrite::disassembled_instruction_t::rip_relative() const
 
 bool binwrite::disassembled_instruction_t::rsp_relative() const
 {
+	return reads_stack_pointer() || writes_stack_pointer();
+}
+
+bool binwrite::disassembled_instruction_t::reads_register_family(const register_family_t family) const
+{
 	for (const auto& operand : operands_)
 	{
-		if (operand.is_reg())
+		if (operand.is_reg() && operand.is_read_action())
 		{
-			const auto reg = operand.reg().value;
-			const auto family = reg.family();
+			const auto reg = operand.reg();
 
-			if (family == register_family_t::sp)
+			if (family == reg.value.family())
 			{
 				return true;
 			}
 		}
+	}
 
-		if (operand.is_mem())
+	return false;
+}
+
+bool binwrite::disassembled_instruction_t::writes_register_family(const register_family_t family) const
+{
+	for (const auto& operand : operands_)
+	{
+		if (operand.is_reg() && operand.is_write_action())
 		{
-			const auto mem = operand.mem();
-			const auto base_family = mem.base.family();
+			const auto reg = operand.reg();
 
-			if (base_family == register_family_t::sp)
+			if (family == reg.value.family())
 			{
 				return true;
 			}
@@ -51,57 +63,22 @@ bool binwrite::disassembled_instruction_t::rsp_relative() const
 
 bool binwrite::disassembled_instruction_t::reads_flags() const
 {
-	for (const auto& operand : hidden_operands())
-	{
-		if (operand.is_reg() && operand.is_read_action())
-		{
-			const auto reg = operand.reg();
-
-			if (reg.value == register_t::rflags)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return reads_register_family(register_family_t::flags);
 }
 
 bool binwrite::disassembled_instruction_t::writes_flags() const
 {
-	for (const auto& operand : hidden_operands())
-	{
-		if (operand.is_reg() && operand.is_write_action())
-		{
-			const auto reg = operand.reg();
-
-			if (reg.value == register_t::rflags)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return writes_register_family(register_family_t::flags);
 }
 
 bool binwrite::disassembled_instruction_t::writes_stack_pointer() const
 {
-	for (const auto& operand : operands_)
-	{
-		if (operand.is_reg() && operand.is_write_action())
-		{
-			const auto reg = operand.reg();
-			const auto family = reg.value.family();
+	return writes_register_family(register_family_t::sp);
+}
 
-			if (family == register_family_t::sp)
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
+bool binwrite::disassembled_instruction_t::reads_stack_pointer() const
+{
+	return reads_register_family(register_family_t::sp);
 }
 
 bool binwrite::disassembled_instruction_t::has_lock() const
@@ -226,6 +203,11 @@ bool binwrite::disassembled_instruction_t::is_call() const
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_CALL;
 }
 
+bool binwrite::disassembled_instruction_t::is_int() const
+{
+	return ZYDIS_MNEMONIC_INT <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_INTO;
+}
+
 bool binwrite::disassembled_instruction_t::is_ret() const
 {
 	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_RET;
@@ -293,6 +275,11 @@ bool binwrite::disassembled_instruction_t::is_cmp() const
 
 std::string binwrite::disassembled_instruction_t::to_string() const
 {
+	if (is_nop())
+	{
+		return "nop";
+	}
+
 	ZydisFormatter formatter;
 	ZydisFormatterInit(&formatter, ZYDIS_FORMATTER_STYLE_INTEL_MASM);
 

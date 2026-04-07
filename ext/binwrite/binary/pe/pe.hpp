@@ -24,6 +24,17 @@ namespace binwrite
 		portable_executable::relocation_type_t type_;
 	};
 
+	struct runtime_function_params_t
+	{
+		rva_t::value_type begin_address;
+		rva_t::value_type end_address;
+		std::vector<portable_executable::unwind_code_t> unwind_codes;
+		portable_executable::unwind_register_t frame_register;
+		std::uint8_t frame_offset;
+		std::uint8_t prolog_size;
+		std::uint8_t flags;
+	};
+
 	class portable_executable_t final : public binary_t
 	{
 	public:
@@ -39,13 +50,18 @@ namespace binwrite
 		[[nodiscard]] portable_executable::image_t* image();
 		[[nodiscard]] const portable_executable::image_t* image() const;
 
+		[[nodiscard]] bool has_exceptions_directory() const;
+
+		void add_runtime_function(const runtime_function_params_t& params,
+								  const std::shared_ptr<rva_t>& exception_directory_rva,
+		                          const std::shared_ptr<rva_t>& unwind_insertion_rva);
+
 	protected:
 		void find_sections() override;
 		void update_section_headers() override;
 		void update_relocations() override;
 
-		rva_t::value_type process_section_alignment(const std::shared_ptr<section_t>& info,
-		                                            rva_t::value_type section_rva, std::uint32_t section_alignment);
+		rva_t::value_type process_section_alignment(const std::shared_ptr<section_t>& info, std::uint32_t section_alignment);
 
 		void copy_sections(std::vector<std::uint8_t>& to, bool decompress);
 

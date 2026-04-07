@@ -20,12 +20,9 @@ void binwrite::binary_t::update_rva_references()
 
 		if (!result)
 		{
-			spdlog::warn("rva reference at 0x{:X} had instruction length change", rva_ref->self().value());
-
 			if (result.error() == rva_ref_t::error_t::instruction_length_changed)
 			{
 				update_section_headers();
-
 				i = 0;
 
 				continue;
@@ -66,47 +63,64 @@ void binwrite::binary_t::update_rvas(const rva_t disruption_rva, const rva_t::si
 	{
 		rva_ref->process_disruption(disruption_rva, disruption_size);
 	}
+
+	bb_index_dirty_ = true;
+	fn_index_dirty_ = true;
+
+	for (const auto& function : functions_)
+	{
+		function->set_basic_blocks_dirty(true);
+	}
 }
 
 std::shared_ptr<binwrite::rva_ref_t> binwrite::binary_t::find_rva_ref(const rva_t ref_rva,
                                                                       const bool must_be_code_reference) const
 {
-	const auto found = std::ranges::find_if(rva_refs_,
-		[ref_rva, must_be_code_reference](const std::shared_ptr<rva_ref_t>& ref)
-		{
-			if (must_be_code_reference && !ref->is_code_reference())
-			{
-				return false;
-			}
-
-			return ref->self() == ref_rva;
-		}
-	);
-
-	if (found == rva_refs_.end())
+	for (const auto& rva_ref : rva_refs_)
 	{
-		return { };
+		const auto& ref = rva_ref;
+
+		if (must_be_code_reference && !ref->is_code_reference())
+		{
+			continue;
+		}
+
+		if (ref->self() == ref_rva)
+		{
+			return rva_ref;
+		}
 	}
 
-	return *found;
+	return { };
+}
+
+std::vector<std::shared_ptr<binwrite::rva_ref_t>> binwrite::binary_t::find_all_targetted_rva_refs(const rva_t target_rva) const
+{
+	std::vector<std::shared_ptr<rva_ref_t>> refs;
+
+	for (const auto& rva_ref : rva_refs_)
+	{
+		if (*rva_ref->target() == target_rva)
+		{
+			refs.push_back(rva_ref);
+		}
+	}
+
+	return refs;
 }
 
 std::shared_ptr<binwrite::rva_t> binwrite::binary_t::add_rva(const rva_t::value_type value, const bool force_inclusive)
 {
-	const auto found = std::ranges::find_if(rvas_,
-		[value, force_inclusive](const std::shared_ptr<rva_t>& rva) -> bool
-		{
-			return rva->value() == value && rva->force_inclusive() == force_inclusive;
-		}
-	);
-
-	if (found != rvas_.end())
+	for (const auto& existing_rva : rvas_)
 	{
-		return *found;
+		if (existing_rva->value() == value &&
+			existing_rva->force_inclusive() == force_inclusive)
+		{
+			return existing_rva;
+		}
 	}
 
 	const auto rva = std::make_shared<rva_t>(value, force_inclusive);
-
 	rvas_.push_back(rva);
 
 	return rva;

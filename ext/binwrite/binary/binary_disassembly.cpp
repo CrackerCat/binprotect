@@ -17,7 +17,10 @@ static void process_basic_block_target_branch(const binwrite::binary_t& binary,
 
 	if (!code_rva_ref)
 	{
-		spdlog::error("unable to find code rva ref of conditional jump");
+		if (binary.jump_table_targets(last_instruction_rva).empty())
+		{
+			spdlog::error("unable to find code rva ref of conditional jump");
+		}
 
 		return;
 	}
@@ -33,7 +36,7 @@ static void process_basic_block_target_branch(const binwrite::binary_t& binary,
 		return;
 	}
 
-	if (!function->find_basic_block(target_rva))
+	if (!binary.find_function(target_rva) && !function->find_basic_block(target_rva))
 	{
 		function->add_basic_block(target_basic_block);
 
@@ -56,7 +59,7 @@ static void process_basic_block_fallthrough_branch(const binwrite::binary_t& bin
 		return;
 	}
 
-	if (!function->find_basic_block(fallthrough_rva))
+	if (!binary.find_function(fallthrough_rva) && !function->find_basic_block(fallthrough_rva))
 	{
 		function->add_basic_block(fallthrough_basic_block);
 
@@ -71,17 +74,20 @@ static void process_function_basic_block(const binwrite::binary_t& binary,
 	const auto& last_instruction = current_block->last_instruction();
 	const auto& last_instruction_disassembly = last_instruction.disassemble();
 
-	if (last_instruction_disassembly.is_ret() || last_instruction_disassembly.is_unconditional_jump())
+	if (last_instruction_disassembly.is_ret())
 	{
 		return;
 	}
 
-	if (last_instruction_disassembly.is_conditional_jump())
+	if (last_instruction_disassembly.is_jump())
 	{
 		process_basic_block_target_branch(binary, function, current_block, last_instruction_disassembly);
 	}
 
-	process_basic_block_fallthrough_branch(binary, function, current_block);
+	if (!last_instruction_disassembly.is_unconditional_jump())
+	{
+		process_basic_block_fallthrough_branch(binary, function, current_block);
+	}
 }
 
 void binwrite::binary_t::assign_function_basic_blocks() const
@@ -95,12 +101,18 @@ void binwrite::binary_t::assign_function_basic_blocks() const
 			return;
 		}
 
-		function->add_basic_block(basic_block);
-
-		process_function_basic_block(*this, function, basic_block);
+		assign_basic_block_to_function(function, basic_block);
 
 		spdlog::info("{} has {} basic block(s)", function->name(), function->basic_blocks().size());
 	}
+}
+
+void binwrite::binary_t::assign_basic_block_to_function(const std::shared_ptr<function_t>& function,
+                                                        const std::shared_ptr<basic_block_t>& basic_block) const
+{
+	function->add_basic_block(basic_block);
+
+	process_function_basic_block(*this, function, basic_block);
 }
 
 void binwrite::binary_t::process_instruction_rip_relativity(const disassembled_instruction_t& disassembled_instruction,
@@ -130,6 +142,8 @@ void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 {
 	rva_t instruction_rva = *basic_block.rva();
 
+	std::optional<disassembled_instruction_t> previous_instruction = std::nullopt;
+
 	while (true)
 	{
 		const auto instruction_address = reinterpret_cast<const std::uint8_t*>(buffer_.data() + instruction_rva.value());
@@ -140,7 +154,7 @@ void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 			break;
 		}
 
-		if (const auto overstepped_basic_block = is_inside_basic_block(rva_t{ instruction_rva }))
+		if (const auto overstepped_basic_block = find_containing_basic_block(rva_t{ instruction_rva }))
 		{
 			const auto index = overstepped_basic_block->instruction_index(rva_t{ instruction_rva });
 
@@ -157,18 +171,27 @@ void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 
 		basic_block.push(*this, instruction_t{ instruction_bytes, *disassembled_instruction }, true);
 
+		if (previous_instruction && previous_instruction->is_call() && disassembled_instruction->is_int())
+		{
+			break;
+		}
+
 		if (disassembled_instruction->is_jump() || disassembled_instruction->is_ret())
 		{
 			break;
 		}
 
 		instruction_rva = next_instruction_rva;
+		previous_instruction = *disassembled_instruction;
 	}
 }
 
 void binwrite::binary_t::process_disassembly_queue()
 {
 	const disassembler_t disassembler;
+
+	bb_index_dirty_ = false;
+	fn_index_dirty_ = false;
 
 	while (!disassembly_queue_.empty())
 	{
@@ -183,7 +206,11 @@ void binwrite::binary_t::process_disassembly_queue()
 		{
 			find_jump_tables(basic_block);
 
-			basic_blocks_.push_back(std::make_shared<basic_block_t>(std::move(basic_block)));
+			auto shared_block = std::make_shared<basic_block_t>(std::move(basic_block));
+
+			basic_blocks_.push_back(shared_block);
+			bb_index_[shared_block->rva()->value()] = shared_block;
+			bb_interval_index_[shared_block->rva()->value()] = shared_block;
 		}
 	}
 }
@@ -198,21 +225,14 @@ void binwrite::binary_t::disassemble()
 
 bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
 {
-	for (const auto& queued_rva : disassembly_queue_)
-	{
-		if (*queued_rva == rva)
-		{
-			return true;
-		}
-	}
-
-	return false;
+	return disassembly_queue_set_.contains(rva.value());
 }
 
 void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva)
 {
-	if (!is_inside_disassembly_queue(*rva) && !find_basic_block(*rva))
+	if (!disassembly_queue_set_.contains(rva->value()) && !find_basic_block(*rva))
 	{
 		disassembly_queue_.push_back(rva);
+		disassembly_queue_set_.insert(rva->value());
 	}
 }

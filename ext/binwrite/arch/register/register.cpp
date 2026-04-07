@@ -44,7 +44,14 @@ bool binwrite::register_t::is_general_purpose() const
 {
 	const register_family_t current_family = family();
 
-	return std::ranges::contains(register_family_t::general_purpose, current_family);
+	return current_family.is_general_purpose();
+}
+
+bool binwrite::register_t::is_non_volatile() const
+{
+	const register_family_t current_family = family();
+
+	return current_family.is_non_volatile();
 }
 
 bool binwrite::register_t::operator==(const register_t& other) const
@@ -77,6 +84,16 @@ binwrite::register_t binwrite::register_family_t::of_size(const register_t::size
 	default:
 		return register_t::none;
 	}
+}
+
+bool binwrite::register_family_t::is_general_purpose() const
+{
+	return std::ranges::contains(general_purpose, *this);
+}
+
+bool binwrite::register_family_t::is_non_volatile() const
+{
+	return std::ranges::contains(non_volatile, *this);
 }
 
 bool binwrite::register_family_t::operator==(const register_family_t& other) const
@@ -219,5 +236,6 @@ const binwrite::register_family_t binwrite::register_family_t::fourteen = { .qwo
 const binwrite::register_family_t binwrite::register_family_t::fifteen = { .qword = register_t::r15, .dword = register_t::r15d, .word = register_t::r15w, .byte = register_t::r15b, .high_byte = register_t::none };
 const binwrite::register_family_t binwrite::register_family_t::flags = { .qword = register_t::rflags, .dword = register_t::eflags, .word = register_t::flags, .byte = register_t::none, .high_byte = register_t::none };
 
-const std::array<binwrite::register_family_t, 15> binwrite::register_family_t::general_purpose = { ax, cx, dx, bx, si, di, bp, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };
+const std::array<binwrite::register_family_t, 9> binwrite::register_family_t::non_volatile = { bx, bp, di, si, sp, twelve, thirteen, fourteen, fifteen };
+const std::array<binwrite::register_family_t, 14> binwrite::register_family_t::general_purpose = { ax, cx, dx, bx, si, di, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };
 const std::array<binwrite::register_family_t, 16> binwrite::register_family_t::families = { ax, cx, dx, bx, si, di, bp, sp, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };

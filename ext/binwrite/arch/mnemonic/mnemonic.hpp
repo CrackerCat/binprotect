@@ -40,6 +40,7 @@ namespace binwrite
 		static const mnemonic_t jb;
 		static const mnemonic_t jnb;
 		static const mnemonic_t cmp;
+		static const mnemonic_t cmpxchg;
 		static const mnemonic_t lea;
 		static const mnemonic_t test;
 		static const mnemonic_t sub;

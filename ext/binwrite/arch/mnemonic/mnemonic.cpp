@@ -19,6 +19,7 @@ const binwrite::mnemonic_t binwrite::mnemonic_t::jnz = mnemonic_t(ZYDIS_MNEMONIC
 const binwrite::mnemonic_t binwrite::mnemonic_t::jb = mnemonic_t(ZYDIS_MNEMONIC_JB);
 const binwrite::mnemonic_t binwrite::mnemonic_t::jnb = mnemonic_t(ZYDIS_MNEMONIC_JNB);
 const binwrite::mnemonic_t binwrite::mnemonic_t::cmp = mnemonic_t(ZYDIS_MNEMONIC_CMP);
+const binwrite::mnemonic_t binwrite::mnemonic_t::cmpxchg = mnemonic_t(ZYDIS_MNEMONIC_CMPXCHG);
 const binwrite::mnemonic_t binwrite::mnemonic_t::lea = mnemonic_t(ZYDIS_MNEMONIC_LEA);
 const binwrite::mnemonic_t binwrite::mnemonic_t::test = mnemonic_t(ZYDIS_MNEMONIC_TEST);
 const binwrite::mnemonic_t binwrite::mnemonic_t::sub = mnemonic_t(ZYDIS_MNEMONIC_SUB);

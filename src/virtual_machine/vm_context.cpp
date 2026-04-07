@@ -1,12 +1,13 @@
 #include "vm_context.hpp"
+#include <spdlog/spdlog.h>
 
-void vm_context_t::enter_virtualized_state(binwrite::binary_t& binary, const binwrite::rva_t rva)
+void vm_context_t::enter_virtualized_state(binwrite::binary_t& binary)
 {
 	std::vector<binwrite::instruction_t> instructions;
 
 	push_registers(instructions);
 
-	entry_block_ = previous_block_ = binary.create_basic_block(rva, instructions);
+	entry_block_ = previous_block_ = binary.create_basic_block(*insertion_rva_, instructions);
 	virtualized_state_ = true;
 
 	basic_blocks_.push_back(entry_block_);
@@ -28,9 +29,10 @@ void vm_context_t::exit_virtualized_state(binwrite::binary_t& binary)
 	previous_block_->push(binary, instructions, false, true);
 	previous_block_->push(binary, ret_instruction().value(), false, true);
 
+	segments_.push_back({ entry_block_, previous_block_, stack_registers_ });
+
 	virtualized_state_ = false;
 	previous_block_ = { };
-	entry_block_ = { };
 
 	shuffle_registers();
 }
@@ -54,20 +56,20 @@ void vm_context_t::process_instruction(const binwrite::disassembled_instruction_
 	current_instruction_.unload.insert_range(current_instruction_.unload.end(), hidden_unload_instructions);
 }
 
-void vm_context_t::compile_instruction(binwrite::binary_t& binary, const binwrite::rva_t rva)
+void vm_context_t::compile_instruction(binwrite::binary_t& binary)
 {
 	if (!virtualized_state_)
 	{
-		enter_virtualized_state(binary, rva);
+		enter_virtualized_state(binary);
 	}
 
 	previous_block_->push(binary, current_instruction_.load, false, true);
 
-	const auto handler_block = binary.create_basic_block(rva, current_instruction_.handler);
+	const auto handler_block = binary.create_basic_block(*insertion_rva_, current_instruction_.handler);
 
 	push_jump_to_block(binary, previous_block_, handler_block);
 
-	previous_block_ = binary.create_basic_block(rva, current_instruction_.unload);
+	previous_block_ = binary.create_basic_block(*insertion_rva_, current_instruction_.unload);
 
 	basic_blocks_.push_back(previous_block_);
 	basic_blocks_.push_back(handler_block);
@@ -77,11 +79,16 @@ void vm_context_t::compile_instruction(binwrite::binary_t& binary, const binwrit
 	free_instruction();
 }
 
+void vm_context_t::set_insertion_rva(std::shared_ptr<binwrite::rva_t> rva)
+{
+	insertion_rva_ = std::move(rva);
+}
+
 hardware_register_t vm_context_t::random_hardware_register()
 {
 	if (free_registers_.empty())
 	{
-		return hardware_register_t({}, binwrite::register_family_t::none);
+		throw std::runtime_error("ran out of available hardware registers");
 	}
 
 	const auto free_register = free_registers_.back();
@@ -103,22 +110,26 @@ void vm_context_t::shuffle_registers()
 
 void vm_context_t::push_registers(std::vector<binwrite::instruction_t>& instructions) const
 {
+	instructions.push_back(push_instruction(binwrite::register_t::rbp).value());
 	push_register(instructions, binwrite::register_family_t::flags);
 
 	for (const auto register_family : stack_registers_)
 	{
-		push_register(instructions, register_family);
+		instructions.push_back(push_instruction(register_family.qword).value());
 	}
+
+	instructions.push_back(lea_instruction(encode_mem_operand(binwrite::register_t::rsp, 0, 8), binwrite::register_t::rbp).value());
 }
 
 void vm_context_t::pop_registers(std::vector<binwrite::instruction_t>& instructions) const
 {
 	for (const auto register_family : stack_registers_ | std::views::reverse)
 	{
-		pop_register(instructions, register_family);
+		instructions.push_back(pop_instruction(register_family.qword).value());
 	}
 
-	pop_register(instructions, binwrite::register_family_t::flags);
+	instructions.push_back(popfq_instruction().value());
+	instructions.push_back(pop_instruction(binwrite::register_t::rbp).value());
 }
 
 std::optional<vm_context_t::offset_type> vm_context_t::register_stack_offset(const binwrite::register_t reg) const
@@ -141,6 +152,7 @@ std::optional<vm_context_t::offset_type> vm_context_t::register_stack_offset(con
 void vm_context_t::free_instruction()
 {
 	current_instruction_ = { };
+	temporary_holding_registers_.clear();
 }
 
 std::vector<std::unique_ptr<obfuscated_operand_t>> vm_context_t::load_instruction(const std::span<const binwrite::decoded_operand_t> operands)
@@ -296,7 +308,26 @@ void vm_context_t::recompile_instruction_operands(std::vector<binwrite::instruct
                                                   const binwrite::disassembled_instruction_t& instruction_disassembly,
                                                   const std::span<const binwrite::encoder_operand_t> operands)
 {
-	const bool uses_flags = instruction_disassembly.reads_flags() || instruction_disassembly.writes_flags();
+	bool uses_flags = instruction_disassembly.reads_flags() || instruction_disassembly.writes_flags();
+
+	if (!uses_flags)
+	{
+		for (const auto& hidden : instruction_disassembly.hidden_operands())
+		{
+			if (hidden.is_reg())
+			{
+				const auto reg = hidden.reg().value;
+
+				if (reg == binwrite::register_t::rflags ||
+					reg == binwrite::register_t::eflags ||
+					reg == binwrite::register_t::flags)
+				{
+					uses_flags = true;
+					break;
+				}
+			}
+		}
+	}
 
 	const offset_type operand_offset = calculate_operand_offset(operands.size());
 
@@ -384,11 +415,12 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 
 			const std::int64_t displacement = static_cast<std::int64_t>(stack_offset + initial_stack_size());
 
-			const hardware_register_t holder = random_hardware_register();
+			hardware_register_t holder = random_hardware_register();
 			const auto sized_holder = holder->of_size(register_width);
 
 			instructions.push_back(mov_instruction(reg, sized_holder).value());
 			instructions.push_back(add_instruction(encode_signed_imm_operand(displacement), sized_holder).value());
+			temporary_holding_registers_.push_back(std::move(holder));
 
 			return sized_holder;
 		}
@@ -440,9 +472,15 @@ binwrite::encoder_operand_t vm_context_t::redirect_operand(std::vector<binwrite:
 			displacement += static_cast<std::int64_t>(stack_offset + initial_stack_size());
 		}
 
-		// can't use destructor as compiler optimises the variables to free too early
-		base_holder.free_self();
-		index_holder.free_self();
+		if (base_holder.value() != binwrite::register_family_t::none)
+		{
+			temporary_holding_registers_.push_back(std::move(base_holder));
+		}
+
+		if (index_holder.value() != binwrite::register_family_t::none)
+		{
+			temporary_holding_registers_.push_back(std::move(index_holder));
+		}
 
 		return encode_mem_operand(base_register, displacement, mem.size, index_register, mem.scale);
 	}

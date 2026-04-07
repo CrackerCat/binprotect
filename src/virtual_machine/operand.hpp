@@ -99,18 +99,14 @@ protected:
 
 static std::unique_ptr<obfuscated_operand_t> random_obfuscated_operand(const bool is_result)
 {
-	std::unique_ptr<obfuscated_operand_t> obfuscated_operand;
-
 	if (binwrite::math::random_bool())
 	{
-		obfuscated_operand = std::make_unique<negated_operand_t>(is_result);
+		return std::make_unique<negated_operand_t>(is_result);
 	}
 	else
 	{
-		obfuscated_operand = std::make_unique<xored_operand_t>(is_result);
+		return std::make_unique<xored_operand_t>(is_result);
 	}
-
-	return obfuscated_operand;
 }
 
 static void encode_obfuscated_operand(std::vector<binwrite::instruction_t>& instructions,

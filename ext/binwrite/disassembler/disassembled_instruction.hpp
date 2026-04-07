@@ -24,10 +24,14 @@ namespace binwrite
 		[[nodiscard]] bool rip_relative() const;
 		[[nodiscard]] bool rsp_relative() const;
 
+		[[nodiscard]] bool reads_register_family(register_family_t family) const;
+		[[nodiscard]] bool writes_register_family(register_family_t family) const;
+
 		[[nodiscard]] bool reads_flags() const;
 		[[nodiscard]] bool writes_flags() const;
 
 		[[nodiscard]] bool writes_stack_pointer() const;
+		[[nodiscard]] bool reads_stack_pointer() const;
 
 		[[nodiscard]] bool has_lock() const;
 
@@ -52,6 +56,7 @@ namespace binwrite
 		[[nodiscard]] bool is_conditional_jump() const;
 		[[nodiscard]] bool is_unconditional_jump() const;
 		[[nodiscard]] bool is_call() const;
+		[[nodiscard]] bool is_int() const;
 		[[nodiscard]] bool is_ret() const;
 		[[nodiscard]] bool is_mov() const;
 		[[nodiscard]] bool is_movzx() const;

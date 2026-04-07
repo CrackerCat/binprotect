@@ -3,25 +3,76 @@
 
 void binwrite::function_t::add_basic_block(std::shared_ptr<basic_block_t> basic_block)
 {
+	bb_index_[basic_block->rva()->value()] = basic_block;
 	basic_blocks_.push_back(std::move(basic_block));
+}
+
+void binwrite::function_t::set_basic_blocks_skip(const bool state) const
+{
+	for (const auto& basic_block : basic_blocks_)
+	{
+		basic_block->set_skip(state);
+	}
+}
+
+void binwrite::function_t::set_basic_blocks_dirty(const bool state)
+{
+	bb_index_dirty_ = state;
 }
 
 std::shared_ptr<binwrite::basic_block_t> binwrite::function_t::find_basic_block(const rva_t rva) const
 {
-	for (const auto& basic_block : basic_blocks_)
+	if (bb_index_dirty_)
 	{
-		if (*basic_block->rva() == rva)
-		{
-			return basic_block;
-		}
+		reindex_basic_blocks();
 	}
 
-	return { };
+	const auto it = bb_index_.find(rva.value());
+
+	if (it == bb_index_.end())
+	{
+		return { };
+	}
+
+	return it->second;
+}
+
+void binwrite::function_t::reindex_basic_blocks() const
+{
+	bb_index_.clear();
+	bb_index_.reserve(basic_blocks_.size());
+
+	for (const auto& basic_block : basic_blocks_)
+	{
+		bb_index_[basic_block->rva()->value()] = basic_block;
+	}
+
+	bb_index_dirty_ = false;
 }
 
 std::shared_ptr<binwrite::basic_block_t> binwrite::function_t::entry_block() const
 {
 	return find_basic_block(*rva_);
+}
+
+[[nodiscard]] std::vector<std::shared_ptr<binwrite::basic_block_t>> binwrite::function_t::exit_blocks(const binary_t& binary) const
+{
+	std::vector<std::shared_ptr<basic_block_t>> blocks = { };
+
+	for (const auto& basic_block : basic_blocks_)
+	{
+		const auto& last_instruction = basic_block->last_instruction();
+		const auto& last_instruction_disassembly = last_instruction.disassemble();
+
+		if (!last_instruction_disassembly.is_ret() && (!last_instruction_disassembly.is_jump() || target_block(binary, basic_block)))
+		{
+			continue;
+		}
+
+		blocks.push_back(basic_block);
+	}
+
+	return blocks;
 }
 
 std::shared_ptr<binwrite::basic_block_t> binwrite::function_t::fallthrough_block(
@@ -41,7 +92,7 @@ std::shared_ptr<binwrite::basic_block_t> binwrite::function_t::fallthrough_block
 }
 
 std::shared_ptr<binwrite::basic_block_t> binwrite::function_t::target_block(const binary_t& binary,
-                                                                                           const std::shared_ptr<basic_block_t>& basic_block) const
+                                                                            const std::shared_ptr<basic_block_t>& basic_block) const
 {
 	const auto& last_instruction = basic_block->last_instruction();
 	const auto& last_instruction_disassembly = last_instruction.disassemble();

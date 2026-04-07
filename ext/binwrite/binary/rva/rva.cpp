@@ -4,6 +4,7 @@
 
 #include "../../disassembler/disassembler.hpp"
 #include "../binary.hpp"
+#include "../pe/cxx_frame_handler4.hpp"
 
 binwrite::rva_t::value_type binwrite::rva_t::value() const
 {
@@ -201,6 +202,39 @@ std::expected<void, binwrite::rva_ref_t::error_t> binwrite::pe_dir64_reloc_t::up
 
 		original_target_value_ = *target_;
 	}
+
+	return { };
+}
+
+std::expected<void, binwrite::rva_ref_t::error_t> binwrite::pe_ip2state_entry_t::update_reference(binary_t& binary)
+{
+	const rva_t::value_type target_rva = target_->value();
+	const rva_t::value_type previous_rva = previous_entry_target_->value(); // if this is the first entry, the function rva is used
+
+	const rva_t::size_type ip = static_cast<std::int32_t>(target_rva - previous_rva);
+
+	std::array<std::uint8_t, 5> encoded_bytes = { };
+
+	const std::uint32_t encoded_size = binwrite::cfh4::encode_unsigned(encoded_bytes.data(), ip);
+
+	const auto self_rva = self_;
+
+	if (size_ != encoded_size)
+	{
+		binary.insert(self_rva, static_cast<rva_t::size_type>(encoded_size));
+		binary.erase(self_rva, size_);
+
+		self_ = self_rva;
+		size_ = static_cast<size_type>(encoded_size);
+
+		std::memcpy(binary.data() + self_rva.value(), encoded_bytes.data(), encoded_size);
+
+		return std::unexpected(error_t::instruction_length_changed);
+	}
+
+	std::memcpy(binary.data() + self_rva.value(), encoded_bytes.data(), encoded_size);
+
+	size_ = static_cast<size_type>(encoded_size);
 
 	return { };
 }

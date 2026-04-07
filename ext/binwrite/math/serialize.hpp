@@ -4,9 +4,9 @@
 namespace binwrite::math
 {
 	template <class T>
-	std::span<const std::uint8_t> serialize_bytes(const T* const info)
+	std::span<const std::uint8_t> serialize_bytes(const T& info)
 	{
-		const auto start = reinterpret_cast<const std::uint8_t*>(info);
+		const auto start = reinterpret_cast<const std::uint8_t*>(&info);
 
 		return { start, start + sizeof(T) };
 	}

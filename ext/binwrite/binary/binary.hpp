@@ -3,11 +3,15 @@
 #include "section/section.hpp"
 
 #include <unordered_map>
+#include <unordered_set>
+#include <map>
 #include <vector>
 #include <string>
 #include <memory>
 #include <span>
 #include <queue>
+#include <chrono>
+#include <atomic>
 
 namespace binwrite
 {
@@ -43,6 +47,7 @@ namespace binwrite
 
 		std::shared_ptr<function_t> find_function(rva_t rva) const;
 		std::shared_ptr<function_t> create_function(const std::string& name, rva_t rva);
+		void add_function(const std::shared_ptr<function_t>& function);
 
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva, std::span<const instruction_t> instructions);
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva);
@@ -51,7 +56,9 @@ namespace binwrite
 		[[nodiscard]] std::span<const std::shared_ptr<basic_block_t>> basic_blocks() const;
 
 		[[nodiscard]] std::shared_ptr<basic_block_t> find_basic_block(rva_t rva) const;
-		[[nodiscard]] std::shared_ptr<basic_block_t> is_inside_basic_block(rva_t rva) const;
+		[[nodiscard]] std::shared_ptr<basic_block_t> find_containing_basic_block(rva_t rva) const;
+		[[nodiscard]] bool is_inside_basic_block(rva_t rva) const;
+		[[nodiscard]] std::span<const std::shared_ptr<rva_t>> jump_table_targets(rva_t dispatcher_rva) const;
 		std::shared_ptr<basic_block_t> split_basic_block(basic_block_t& basic_block, basic_block_t::size_type index);
 
 		[[nodiscard]] std::vector<std::shared_ptr<rva_t>> rvas();
@@ -64,6 +71,7 @@ namespace binwrite
 
 		[[nodiscard]] std::shared_ptr<section_t> find_section(const std::string& name) const;
 		[[nodiscard]] std::shared_ptr<section_t> code_section() const;
+		[[nodiscard]] std::shared_ptr<section_t> data_section() const;
 
 		[[nodiscard]] bool is_in_code_section(rva_t rva) const;
 
@@ -78,28 +86,41 @@ namespace binwrite
 		void update_rvas(rva_t disruption_rva, rva_t::size_type disruption_size, bool inclusive = false, bool update_sections = true);
 
 		[[nodiscard]] std::shared_ptr<rva_ref_t> find_rva_ref(rva_t ref_rva, bool must_be_code_reference = false) const;
+		[[nodiscard]] std::vector<std::shared_ptr<rva_ref_t>> find_all_targetted_rva_refs(rva_t target_rva) const;
 
 		std::shared_ptr<rva_t> add_rva(rva_t::value_type value, bool force_inclusive = false);
 		std::shared_ptr<rva_t> add_rva(rva_t rva, bool force_inclusive = false);
 
 		void add_rva_ref(std::shared_ptr<rva_ref_t> ref);
 		void redirect_rva_ref(rva_t self, rva_t new_target);
+		void add_jump_table_target(rva_t dispatcher_rva, const std::shared_ptr<rva_t>& target);
 
 		[[nodiscard]] bool is_inside_disassembly_queue(rva_t rva) const;
 		void add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva);
 
-		template <class T>
-		std::shared_ptr<data_rva_ref_t> add_data_rva_ref(const T* const value)
-		{
-			const auto data_reference = static_cast<rva_t::value_type>(reinterpret_cast<const std::uint8_t*>(value) - data());
-			const auto data_rva = add_rva(static_cast<rva_t::value_type>(*value));
+		void reindex_basic_blocks() const;
+		void reindex_functions() const;
 
-			const auto ref = std::make_shared<data_rva_ref_t>(data_rva, rva_t{ data_reference }, static_cast<data_rva_ref_t::size_type>(sizeof(T)));
+		template <class T>
+		std::shared_ptr<rva_ref_t> add_data_rva_ref(const T* const value, const bool force_inclusive = false)
+		{
+			const rva_t data_reference(static_cast<rva_t::value_type>(reinterpret_cast<const std::uint8_t*>(value) - data()));
+
+			if (const auto existing_ref = find_rva_ref(data_reference))
+			{
+				return existing_ref;
+			}
+
+			const auto data_rva = add_rva(static_cast<rva_t::value_type>(*value), force_inclusive);
+
+			const auto ref = std::make_shared<data_rva_ref_t>(data_rva, data_reference, static_cast<data_rva_ref_t::size_type>(sizeof(T)));
 
 			add_rva_ref(ref);
 
 			return ref;
 		}
+
+		void assign_basic_block_to_function(const std::shared_ptr<function_t>& function, const std::shared_ptr<basic_block_t>& basic_block) const;
 
 	protected:
 		virtual void find_data_rvas() = 0;
@@ -129,8 +150,8 @@ namespace binwrite
 		std::shared_ptr<rva_t> add_relocation_rva(rva_t::value_type target);
 		std::shared_ptr<rva_t> add_relocation_rva(rva_t target);
 
-		void add_llvm_jmp_table_ref(rva_t table_base, std::int32_t count);
-		void add_msvc_jmp_table_ref(rva_t table_base, std::int32_t count);
+		void add_llvm_jmp_table_ref(rva_t table_base, std::int32_t count, rva_t dispatcher_rva);
+		void add_msvc_jmp_table_ref(rva_t table_base, std::int32_t count, rva_t dispatcher_rva);
 
 		std::vector<std::uint8_t> buffer_;
 		std::unordered_map<std::string, std::shared_ptr<section_t>> sections_;
@@ -141,10 +162,20 @@ namespace binwrite
 		std::vector<std::shared_ptr<rva_ref_t>> rva_refs_;
 
 		std::vector<std::shared_ptr<basic_block_t>> basic_blocks_;
+		std::unordered_map<rva_t::value_type, std::vector<std::shared_ptr<rva_t>>> jump_table_targets_;
 		std::deque<std::shared_ptr<rva_t>> disassembly_queue_;
+		std::unordered_set<rva_t::value_type> disassembly_queue_set_;
 
 		std::vector<std::shared_ptr<function_t>> functions_;
 
 		std::vector<std::shared_ptr<relocation_t>> relocations_;
+
+		// lookup caches - mutable because they are rebuilt lazily from const lookup methods
+		mutable bool bb_index_dirty_ = true;
+		mutable std::unordered_map<rva_t::value_type, std::shared_ptr<basic_block_t>> bb_index_;
+		mutable std::map<rva_t::value_type, std::shared_ptr<basic_block_t>> bb_interval_index_;
+
+		mutable bool fn_index_dirty_ = true;
+		mutable std::unordered_map<rva_t::value_type, std::shared_ptr<function_t>> fn_index_;
 	};
 }

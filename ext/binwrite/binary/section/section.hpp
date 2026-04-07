@@ -23,6 +23,8 @@ namespace binwrite
 		void insert(binary_t& binary, rva_t section_offset, std::span<const std::uint8_t> data);
 
 		[[nodiscard]] rva_t rva() const;
+		void set_rva(rva_t rva);
+
 		[[nodiscard]] rva_t end_rva() const;
 
 		[[nodiscard]] bool contains(rva_t rva) const;
@@ -33,7 +35,9 @@ namespace binwrite
 
 		[[nodiscard]] size_type padding() const;
 		void set_padding(size_type padding);
+
 		void remove_padding(size_type size);
+		void add_padding(size_type size);
 
 	protected:
 		rva_t rva_;

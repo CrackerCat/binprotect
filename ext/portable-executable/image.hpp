@@ -327,6 +327,19 @@ namespace portable_executable
 			return { module, data_directory.virtual_address, data_directory.size };
 		}
 
+		[[nodiscard]] std::optional<runtime_function_descriptor_t> find_runtime_function(const std::uint32_t begin_rva) const
+		{
+			for (const auto runtime_function : runtime_functions())
+			{
+				if (runtime_function.function_begin_rva == begin_rva)
+				{
+					return runtime_function;
+				}
+			}
+
+			return { };
+		}
+
 		[[nodiscard]] load_config_directory_t* load_config()
 		{
 			data_directory_t data_directory = this->nt_headers()->optional_header.data_directories.load_config_directory;

@@ -156,6 +156,11 @@
     <ClCompile Include="ext\binwrite\binary\pe\pe_rvas.cpp" />
     <ClCompile Include="ext\binwrite\binary\pe\pe.cpp" />
     <ClCompile Include="ext\binwrite\binary\pe\pe_sections.cpp" />
+    <ClCompile Include="ext\binwrite\binary\pe\pe_exception_directory.cpp" />
+    <ClCompile Include="ext\binwrite\binary\pe\pe_frame_pointer.cpp" />
+    <ClCompile Include="ext\binwrite\binary\pe\pe_frame_pointer_scan.cpp" />
+    <ClCompile Include="ext\binwrite\binary\pe\pe_throw_info.cpp" />
+    <ClCompile Include="ext\binwrite\binary\pe\pe_runtime_function.cpp" />
     <ClCompile Include="ext\binwrite\disassembler\decoded_operand.cpp" />
     <ClCompile Include="ext\binwrite\disassembler\disassembled_instruction.cpp" />
     <ClCompile Include="ext\binwrite\binary\section\section.cpp" />
@@ -189,6 +194,8 @@
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp" />
     <ClInclude Include="ext\binwrite\binary\binary.hpp" />
     <ClInclude Include="ext\binwrite\binary\pe\pe.hpp" />
+    <ClInclude Include="ext\binwrite\binary\pe\pe_exceptions.hpp" />
+    <ClInclude Include="ext\binwrite\binary\pe\cxx_frame_handler4.hpp" />
     <ClInclude Include="ext\binwrite\disassembler\decoded_operand.hpp" />
     <ClInclude Include="ext\binwrite\disassembler\disassembled_instruction.hpp" />
     <ClInclude Include="ext\binwrite\math\serialize.hpp" />

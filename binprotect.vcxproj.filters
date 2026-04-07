@@ -117,6 +117,21 @@
     <ClCompile Include="ext\binwrite\binary\pe\pe_sections.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_exception_directory.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_frame_pointer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_frame_pointer_scan.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_throw_info.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_runtime_function.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="ext\binwrite\disassembler\decoded_operand.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -132,6 +147,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\binwrite\binary\pe\pe.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\binary\pe\pe_exceptions.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\binary\pe\cxx_frame_handler4.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\binwrite\disassembler\disassembler.hpp">

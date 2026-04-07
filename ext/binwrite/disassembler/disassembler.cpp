@@ -59,7 +59,7 @@ std::optional<std::uint32_t> binwrite::resolve_instruction_rva(const disassemble
 
 	const std::uint32_t rip = instruction_rva.value() + instruction.size();
 
-	for (auto& operand : instruction.visible_operands())
+	for (const auto& operand : instruction.visible_operands())
 	{
 		if (operand.is_imm() && operand.imm().is_relative)
 		{

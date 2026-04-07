@@ -34,9 +34,14 @@ binwrite::rva_t binwrite::section_t::rva() const
 	return rva_;
 }
 
+void binwrite::section_t::set_rva(const rva_t rva)
+{
+	rva_ = rva;
+}
+
 binwrite::rva_t binwrite::section_t::end_rva() const
 {
-	return rva_t{ rva_.value() + size_ };
+	return rva_t{ rva_.value() + size_ + padding_ };
 }
 
 binwrite::section_t::size_type binwrite::section_t::size() const
@@ -62,6 +67,11 @@ void binwrite::section_t::set_padding(const size_type padding)
 void binwrite::section_t::remove_padding(const size_type size)
 {
 	padding_ -= size;
+}
+
+void binwrite::section_t::add_padding(const size_type size)
+{
+	padding_ += size;
 }
 
 bool binwrite::section_t::contains(const rva_t rva) const

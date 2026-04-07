@@ -1,6 +1,7 @@
 #include "control_flow_flattening.hpp"
 #include "../assembler/assembler.hpp"
 
+#include <binwrite/disassembler/disassembler.hpp>
 #include <binwrite/math/random.hpp>
 #include <spdlog/spdlog.h>
 
@@ -62,35 +63,21 @@ static std::vector<binwrite::instruction_t> set_block_id_instructions(const cff_
 	return instructions;
 }
 
-static std::shared_ptr<binwrite::rva_t> insert_entry_block_stub(binwrite::binary_t& binary,
+static std::shared_ptr<binwrite::basic_block_t> insert_dispatcher_block(binwrite::binary_t& binary,
 	binwrite::function_t& function,
-	const std::shared_ptr<binwrite::basic_block_t>& entry_block,
-	const binwrite::register_family_t id_register_family,
-	std::vector<cff_block_t>& cff_blocks)
+	const std::shared_ptr<binwrite::basic_block_t>& entry_block)
 {
-	const auto entry_cff_block = find_cff_block(cff_blocks, *entry_block->rva());
-
-	if (entry_cff_block == cff_blocks.end())
-	{
-		return { };
-	}
-
 	const auto marker_instruction = nop_instruction().value();
+	const auto original_count = entry_block->count();
 
-	std::vector<binwrite::instruction_t> set_id_instructions = set_block_id_instructions(*entry_cff_block, id_register_family);
-
-	set_id_instructions.push_back(marker_instruction);
-
-	entry_block->insert(binary, set_id_instructions, 0);
+	entry_block->push(binary, marker_instruction, false, true);
 
 	const auto split_block = binary.split_basic_block(*entry_block,
-	                                                  static_cast<binwrite::basic_block_t::size_type>(
-		                                                  set_id_instructions.size()));
+		static_cast<binwrite::basic_block_t::size_type>(original_count));
 
 	function.add_basic_block(split_block);
-	entry_cff_block->basic_block = split_block;
 
-	return binary.add_rva(binwrite::rva_t{ entry_block->end_rva().value() - marker_instruction.size() });
+	return split_block;
 }
 
 static void insert_block_jump_stub(binwrite::binary_t& binary,
@@ -169,7 +156,8 @@ static void process_cff_fallthrough_block(binwrite::binary_t& binary,
 
 		if (fallthrough_cff_block == cff_blocks.end())
 		{
-			spdlog::warn("couldn't find fallthrough cff block for control flow flattening");
+			spdlog::warn("couldn't find fallthrough cff block at 0x{:X} for block at 0x{:X}",
+				fallthrough_block->rva()->value(), cff_block.basic_block->rva()->value());
 
 			return;
 		}
@@ -202,17 +190,21 @@ static void process_cff_target_block(binwrite::binary_t& binary, const cff_block
 
 static void flatten_blocks(binwrite::binary_t& binary, const std::shared_ptr<binwrite::rva_t>& stub_insert_rva,
                            const std::shared_ptr<binwrite::basic_block_t>& stub_basic_block,
+                           const std::shared_ptr<binwrite::basic_block_t>& entry_block,
                            const binwrite::register_family_t id_register_family,
-                           std::vector<cff_block_t>& cff_blocks)
+                           std::vector<cff_block_t>& cff_blocks,
+                           const std::function<bool(binwrite::rva_t::value_type)>& is_block_fixed)
 {
 	const binwrite::basic_block_t::size_type entry_stub_size = stub_basic_block->count();
 
 	for (const auto& cff_block : cff_blocks)
 	{
 		const auto& basic_block = cff_block.basic_block;
-		const auto last_block_instruction = basic_block->last_instruction();
 
-		basic_block->move_entire(binary, stub_basic_block->end_rva());
+		if (basic_block != entry_block && !(is_block_fixed && is_block_fixed(basic_block->rva()->value())))
+		{
+			basic_block->move_entire(binary, stub_basic_block->end_rva());
+		}
 
 		insert_block_jump_stub(binary, stub_basic_block, cff_block, id_register_family, entry_stub_size);
 
@@ -224,31 +216,69 @@ static void flatten_blocks(binwrite::binary_t& binary, const std::shared_ptr<bin
 	}
 }
 
-void binprotect::control_flow::flattening::do_pass(binwrite::binary_t& binary, binwrite::function_t& function)
+void binprotect::control_flow::flattening::do_pass(binwrite::binary_t& binary, binwrite::function_t& function,
+                                                   const std::function<bool(binwrite::rva_t::value_type)>& is_block_fixed)
 {
 	if (function.basic_blocks().size() <= 1)
 	{
 		return;
 	}
 
+	/*for (const auto& basic_block : function.basic_blocks())
+	{
+		while (basic_block->count() > 1)
+		{
+			const auto& last = basic_block->last_instruction().disassemble();
+
+			if (!(last.is_nop() || last.is_int()))
+			{
+				break;
+			}
+
+			basic_block->erase(binary, basic_block->count() - 1);
+		}
+	}*/
+
 	std::vector<cff_block_t> cff_blocks = collect_cff_blocks(binary, function);
+
+	/*for (const auto& cff_block : cff_blocks)
+	{
+		if (cff_block.fallthrough_block)
+		{
+			if (find_cff_block(cff_blocks, *cff_block.fallthrough_block->rva()) == cff_blocks.end())
+			{
+				spdlog::warn("CFF skip {}: can't find fallthrough cff block", function.name());
+				return;
+			}
+		}
+
+		if (cff_block.target_block)
+		{
+			if (find_cff_block(cff_blocks, *cff_block.target_block->rva()) == cff_blocks.end())
+			{
+				spdlog::warn("CFF skip {}: can't find target cff block", function.name());
+				return;
+			}
+		}
+	}*/
 
 	const binwrite::register_family_t id_register_family = binwrite::register_family_t::random();
 
 	const auto entry_block = function.entry_block();
+	const auto dispatcher_block = insert_dispatcher_block(binary, function, entry_block);
 
-	const auto stub_insert_rva = insert_entry_block_stub(binary, function, entry_block, id_register_family, cff_blocks);
-
-	if (!stub_insert_rva)
+	if (!dispatcher_block)
 	{
-		spdlog::error("unable to create entry block stub for control flow flattening");
+		spdlog::error("unable to create dispatcher block for control flow flattening");
 
 		return;
 	}
 
+	const auto stub_insert_rva = dispatcher_block->rva();
+
 	binwrite::math::shuffle<cff_block_t>(cff_blocks);
 
-	flatten_blocks(binary, stub_insert_rva, entry_block, id_register_family, cff_blocks);
+	flatten_blocks(binary, stub_insert_rva, dispatcher_block, entry_block, id_register_family, cff_blocks, is_block_fixed);
 
-	entry_block->push(binary, int3_instruction(), false, true);
+	dispatcher_block->push(binary, int3_instruction(), false, true);
 }
