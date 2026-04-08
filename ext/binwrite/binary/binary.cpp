@@ -73,6 +73,11 @@ void binwrite::binary_t::add_function(const std::shared_ptr<function_t>& functio
 	fn_index_[rva.value()] = function;
 }
 
+void binwrite::binary_t::remove_function(const std::shared_ptr<function_t>& function)
+{
+	std::erase(functions_, function);
+}
+
 std::shared_ptr<binwrite::function_t> binwrite::binary_t::create_function(const std::string& name, const rva_t rva)
 {
 	if (const auto existing_function = find_function(rva))

@@ -65,6 +65,8 @@ namespace binwrite
 
 		void copy_sections(std::vector<std::uint8_t>& to, bool decompress);
 
+		void add_load_config_table_rvas(const portable_executable::load_config_directory_t::table_t& table);
+		void add_load_config_rvas(const portable_executable::image_t* img);
 		void add_misc_rvas(const portable_executable::nt_headers_t* nt_headers);
 		void add_data_directory_rvas(const portable_executable::nt_headers_t* nt_headers);
 		void add_import_rvas(const portable_executable::nt_headers_t* nt_headers);

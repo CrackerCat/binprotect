@@ -48,6 +48,7 @@ namespace binwrite
 		std::shared_ptr<function_t> find_function(rva_t rva) const;
 		std::shared_ptr<function_t> create_function(const std::string& name, rva_t rva);
 		void add_function(const std::shared_ptr<function_t>& function);
+		void remove_function(const std::shared_ptr<function_t>& function);
 
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva, std::span<const instruction_t> instructions);
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva);
@@ -143,7 +144,7 @@ namespace binwrite
 
 		void find_jump_tables(const basic_block_t& basic_block);
 
-		void assign_function_basic_blocks() const;
+		void assign_function_basic_blocks();
 
 		void update_section_rvas(rva_t disruption_rva, rva_t::size_type disruption_size);
 

@@ -42,7 +42,12 @@ namespace binwrite
 		block_insertion_list_t& block_instructions,
 		register_family_t check_family,
 		bool stop_at_epilogue,
-		const std::vector<register_family_t>* extra_families = nullptr);
+		const std::vector<register_family_t>& extra_families = { });
+
+	void collect_extra_stack_pointer_families(
+		const std::shared_ptr<basic_block_t>& basic_block,
+		std::vector<register_family_t>& extra_families,
+		register_family_t check_family);
 
 	void assign_handler_blocks_to_function(
 		portable_executable_t& pe,
@@ -95,31 +100,6 @@ static binwrite::encoder_operand_t stack_mem_operand(const std::int64_t displace
 	});
 
 	return operand;
-}
-
-struct rewrite_stats_t
-{
-	std::uint32_t total = 0;
-	std::uint32_t no_function = 0;
-	std::uint32_t skip_already = 0;
-	std::uint32_t has_frame_pointer = 0;
-	std::uint32_t scan_fail = 0;
-	std::uint32_t jump_table = 0;
-	std::uint32_t rbp_conflict = 0;
-	std::uint32_t rewritten = 0;
-};
-
-static void log_rewrite_stats(const rewrite_stats_t& stats)
-{
-	spdlog::info("=== runtime function skip stats ===");
-	spdlog::info("  total runtime functions: {}", stats.total);
-	spdlog::info("  no function found: {}", stats.no_function);
-	spdlog::info("  already skipped: {}", stats.skip_already);
-	spdlog::info("  has frame pointer (skips rewrite only): {}", stats.has_frame_pointer);
-	spdlog::info("  scan fail (unresolved jump / rsp+idx / rbp write): {}", stats.scan_fail);
-	spdlog::info("  jump table (skips rewrite only): {}", stats.jump_table);
-	spdlog::info("  rbp conflict in unwind: {}", stats.rbp_conflict);
-	spdlog::info("  successfully rewritten: {}", stats.rewritten);
 }
 
 static bool has_unwind_register_conflict(
@@ -402,7 +382,6 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 	block_insertion_list_t block_instructions;
 	std::vector<std::pair<std::shared_ptr<rva_t>, std::vector<std::uint8_t>>> unwind_code_insertions;
 	std::vector<std::pair<std::shared_ptr<rva_ref_t>, std::vector<std::uint8_t>>> unwind_info_insertions;
-	rewrite_stats_t stats;
 
 	const auto data_directory = image->nt_headers()->optional_header.data_directories.exception_directory;
 
@@ -419,13 +398,10 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 
 	for (std::uint32_t f = 0; f < count; f++, runtime_function++)
 	{
-		stats.total++;
-
 		const auto function = function_map[runtime_function->begin_address];
 
 		if (!function)
 		{
-			stats.no_function++;
 			continue;
 		}
 
@@ -435,24 +411,15 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 
 		const auto entry_block = function->entry_block();
 
-		if (entry_block->should_skip())
-		{
-			stats.skip_already++;
-			continue;
-		}
-
-		{
-			std::unordered_set<rva_t::value_type> visited;
-			assign_runtime_function_basic_block(pe, function, entry_block,
-				rva_t{ runtime_function->begin_address }, rva_t{ runtime_function->end_address }, visited);
-		}
+		std::unordered_set<rva_t::value_type> visited;
+		assign_runtime_function_basic_block(pe, function, entry_block,
+			rva_t{ runtime_function->begin_address }, rva_t{ runtime_function->end_address }, visited);
 
 		auto* unwind_info = copied_unwind_info.empty() ? original_unwind_info :
 			reinterpret_cast<portable_executable::unwind_info_t*>(copied_unwind_info.data());
 
 		if (unwind_info->has_frame_pointer())
 		{
-			stats.has_frame_pointer++;
 			continue;
 		}
 
@@ -462,13 +429,11 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 		if (scan_function_for_rewrite_conflicts(*function, entry_block, original_unwind_info,
 			register_family_t::bp, runtime_function, pe, has_jump_table))
 		{
-			stats.scan_fail++;
 			continue;
 		}
 
 		if (has_jump_table)
 		{
-			stats.jump_table++;
 			continue;
 		}
 
@@ -476,11 +441,8 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 
 		if (has_unwind_register_conflict(unwind_info, unwind_register))
 		{
-			stats.rbp_conflict++;
 			continue;
 		}
-
-		stats.rewritten++;
 
 		auto [current_stack_offset, last_instruction_index] =
 			adjust_prologue_displacements(pe, *function, entry_block, unwind_info, block_instructions);
@@ -499,18 +461,25 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 
 		block_instructions.emplace_back(entry_block, setup.lea_instruction, last_instruction_index + 1);
 		block_instructions.emplace_back(entry_block, setup.lea_instruction, last_instruction_index + 1);
-		block_instructions.emplace_back(entry_block, setup.push_instruction, 0u);
-		block_instructions.emplace_back(entry_block, setup.push_instruction, 0u);
+		block_instructions.emplace_back(entry_block, setup.push_instruction, 0);
+		block_instructions.emplace_back(entry_block, setup.push_instruction, 0);
+
+		std::vector<register_family_t> frame_families = { };
+
+		collect_extra_stack_pointer_families(entry_block, frame_families, register_family_t::sp);
 
 		for (const auto& basic_block : function->basic_blocks())
 		{
 			if (function->basic_blocks().size() != 1 && basic_block == entry_block)
 			{
+				adjust_displacements_in_block(pe, basic_block, current_stack_offset, block_instructions,
+					register_family_t::none, true, frame_families);
+
 				continue;
 			}
 
 			adjust_displacements_in_block(pe, basic_block, current_stack_offset, block_instructions,
-				register_family_t::sp, true);
+				register_family_t::sp, true, frame_families);
 		}
 
 		adjust_catch_handler_displacements(pe, context.catch_handlers[runtime_function->begin_address],
@@ -524,5 +493,4 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 	}
 
 	apply_deferred_insertions(pe, unwind_info_insertions, unwind_code_insertions, block_instructions);
-	log_rewrite_stats(stats);
 }

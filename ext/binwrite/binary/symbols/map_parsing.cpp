@@ -80,6 +80,14 @@ bool binwrite::symbols::map::parse(binary_t& binary, const std::filesystem::path
 		}
 
 		const auto function_name = regex_matches[3].str();
+
+		if (function_name.empty() || function_name[0] == '.' ||
+			function_name.contains("__IMPORT_DESCRIPTOR_") ||
+			function_name == "__NULL_IMPORT_DESCRIPTOR")
+		{
+			continue;
+		}
+
 		const auto function_rva = rva_t{ static_cast<std::uint32_t>(function_address - image_base) };
 
 		if (binary.find_function(function_rva))

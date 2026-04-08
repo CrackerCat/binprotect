@@ -52,6 +52,8 @@ namespace binwrite
 		[[nodiscard]] register_family_t find_unused_register(std::span<const register_family_t> excluding = { }) const;
 		[[nodiscard]] register_family_t find_unused_register(register_family_t excluding) const;
 
+		[[nodiscard]] bool is_control_flow() const;
+
 		[[nodiscard]] bool is_jump() const;
 		[[nodiscard]] bool is_conditional_jump() const;
 		[[nodiscard]] bool is_unconditional_jump() const;

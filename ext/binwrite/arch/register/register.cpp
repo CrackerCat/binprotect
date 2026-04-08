@@ -91,6 +91,11 @@ bool binwrite::register_family_t::is_general_purpose() const
 	return std::ranges::contains(general_purpose, *this);
 }
 
+bool binwrite::register_family_t::is_volatile() const
+{
+	return std::ranges::contains(_volatile, *this);
+}
+
 bool binwrite::register_family_t::is_non_volatile() const
 {
 	return std::ranges::contains(non_volatile, *this);
@@ -119,7 +124,7 @@ binwrite::register_family_t binwrite::register_family_t::random(const std::span<
 
 	do
 	{
-		random_family = math::random_entry<register_family_t>(general_purpose);
+		random_family = math::random_entry<register_family_t>(_volatile);
 
 	} while (std::ranges::contains(excluding, random_family));
 
@@ -236,6 +241,7 @@ const binwrite::register_family_t binwrite::register_family_t::fourteen = { .qwo
 const binwrite::register_family_t binwrite::register_family_t::fifteen = { .qword = register_t::r15, .dword = register_t::r15d, .word = register_t::r15w, .byte = register_t::r15b, .high_byte = register_t::none };
 const binwrite::register_family_t binwrite::register_family_t::flags = { .qword = register_t::rflags, .dword = register_t::eflags, .word = register_t::flags, .byte = register_t::none, .high_byte = register_t::none };
 
+const std::array<binwrite::register_family_t, 7> binwrite::register_family_t::_volatile = { ax, cx, dx, eight, nine, ten, eleven };
 const std::array<binwrite::register_family_t, 9> binwrite::register_family_t::non_volatile = { bx, bp, di, si, sp, twelve, thirteen, fourteen, fifteen };
 const std::array<binwrite::register_family_t, 14> binwrite::register_family_t::general_purpose = { ax, cx, dx, bx, si, di, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };
 const std::array<binwrite::register_family_t, 16> binwrite::register_family_t::families = { ax, cx, dx, bx, si, di, bp, sp, eight, nine, ten, eleven, twelve, thirteen, fourteen, fifteen };

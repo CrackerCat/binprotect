@@ -15,7 +15,8 @@ static bool is_safe_vm_instruction(const binwrite::disassembled_instruction_t& i
 
 	const auto& visible_operands = instruction.visible_operands();
 
-	if (visible_operands.empty())
+	if (visible_operands.empty() && instruction.mnemonic() != binwrite::mnemonic_t::movsb &&
+		instruction.mnemonic() != binwrite::mnemonic_t::cpuid_)
 	{
 		return false;
 	}
@@ -73,7 +74,7 @@ std::shared_ptr<vm_context_t> binprotect::vm::do_pass(binwrite::binary_t& binary
                              std::shared_ptr<binwrite::rva_t> insertion_rva,
                              std::vector<std::shared_ptr<binwrite::basic_block_t>>& virtual_machine_blocks)
 {
-	const auto context = std::make_shared<vm_context_t>(binwrite::register_family_t::general_purpose);
+	const auto context = std::make_shared<vm_context_t>(binwrite::register_family_t::non_volatile);
 	context->set_insertion_rva(std::move(insertion_rva));
 
 	const std::span<const binwrite::instruction_t> original_instructions = basic_block.instructions();
@@ -179,8 +180,12 @@ void binprotect::vm::emit_runtime_functions(binwrite::portable_executable_t& pe,
 				unwind_codes.emplace_back(it->first, portable_executable::unwind_opcode_t::push_non_volatile, static_cast<std::uint8_t>(it->second));
 			}
 
-			unwind_codes.emplace_back(static_cast<std::uint8_t>(1), portable_executable::unwind_opcode_t::stack_allocate_small, 0);
-			unwind_codes.emplace_back(static_cast<std::uint8_t>(1), portable_executable::unwind_opcode_t::push_non_volatile, static_cast<std::uint8_t>(portable_executable::unwind_register_t::rbp));
+			unwind_codes.emplace_back(static_cast<std::uint8_t>(1),
+			                          portable_executable::unwind_opcode_t::stack_allocate_small, 0);
+
+			unwind_codes.emplace_back(static_cast<std::uint8_t>(1),
+			                          portable_executable::unwind_opcode_t::push_non_volatile,
+			                          static_cast<std::uint8_t>(portable_executable::unwind_register_t::rbp));
 
 			pe.add_runtime_function({
 				.begin_address = entry_block->rva()->value(),

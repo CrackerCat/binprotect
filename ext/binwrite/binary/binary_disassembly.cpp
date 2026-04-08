@@ -90,20 +90,29 @@ static void process_function_basic_block(const binwrite::binary_t& binary,
 	}
 }
 
-void binwrite::binary_t::assign_function_basic_blocks() const
+void binwrite::binary_t::assign_function_basic_blocks()
 {
+	std::vector<std::shared_ptr<function_t>> removal_functions = { };
+
 	for (const auto& function : functions_)
 	{
 		const auto basic_block = find_basic_block(*function->rva());
 
 		if (!basic_block)
 		{
-			return;
+			removal_functions.push_back(function);
+
+			continue;
 		}
 
 		assign_basic_block_to_function(function, basic_block);
 
 		spdlog::info("{} has {} basic block(s)", function->name(), function->basic_blocks().size());
+	}
+
+	for (const auto& function : removal_functions)
+	{
+		remove_function(function);
 	}
 }
 
@@ -124,7 +133,7 @@ void binwrite::binary_t::process_instruction_rip_relativity(const disassembled_i
 
 		add_rva_ref(std::make_shared<code_rva_ref_t>(target_rva, rva_t{ instruction_rva }, disassembled_instruction.size()));
 
-		if (is_in_code_section(*target_rva))
+		if (disassembled_instruction.is_control_flow() && is_in_code_section(*target_rva))
 		{
 			if (disassembled_instruction.is_conditional_jump())
 			{
@@ -230,6 +239,11 @@ bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
 
 void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva)
 {
+	if (0x6000 <= rva->value())
+	{
+		__debugbreak();
+	}
+
 	if (!disassembly_queue_set_.contains(rva->value()) && !find_basic_block(*rva))
 	{
 		disassembly_queue_.push_back(rva);

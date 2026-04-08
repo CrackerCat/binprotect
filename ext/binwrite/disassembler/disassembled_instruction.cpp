@@ -183,6 +183,11 @@ binwrite::register_family_t binwrite::disassembled_instruction_t::find_unused_re
 	return find_unused_register(std::array{ excluding });
 }
 
+bool binwrite::disassembled_instruction_t::is_control_flow() const
+{
+	return is_jump() || is_call() || is_ret();
+}
+
 bool binwrite::disassembled_instruction_t::is_jump() const
 {
 	return ZYDIS_MNEMONIC_JB <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_JZ;

@@ -2,6 +2,48 @@
 
 #include <spdlog/spdlog.h>
 
+void binwrite::portable_executable_t::add_load_config_table_rvas(
+	const portable_executable::load_config_directory_t::table_t& table)
+{
+	if (table.virtual_address)
+	{
+		const rva_t entries_rva(static_cast<rva_t::value_type>(table.virtual_address - image_base()));
+
+		auto entry = reinterpret_cast<const std::uint32_t*>(data() + entries_rva.value());
+
+		for (std::size_t i = 0; i < table.size; i++, entry++)
+		{
+			add_data_rva_ref(entry);
+		}
+	}
+}
+
+void binwrite::portable_executable_t::add_load_config_rvas(const portable_executable::image_t* const img)
+{
+	const auto load_config = img->load_config();
+
+	if (!load_config)
+	{
+		return;
+	}
+
+	if (load_config->dynamic_value_reloc_table_rva)
+	{
+		add_data_rva_ref(&load_config->dynamic_value_reloc_table_rva);
+	}
+
+	if (load_config->hot_patch_table_rva)
+	{
+		add_data_rva_ref(&load_config->hot_patch_table_rva);
+	}
+
+	add_load_config_table_rvas(load_config->guard_cf_function_table);
+	/*add_load_config_table_rvas(load_config->se_handler_table);
+	add_load_config_table_rvas(load_config->guard_address_taken_iat_entry_table);
+	add_load_config_table_rvas(load_config->guard_long_jump_target_table);
+	add_load_config_table_rvas(load_config->guard_eh_continuation_table);*/
+}
+
 void binwrite::portable_executable_t::add_misc_rvas(const portable_executable::nt_headers_t* const nt_headers)
 {
 	const auto entry_point_ptr = &nt_headers->optional_header.address_of_entry_point;
@@ -250,6 +292,7 @@ void binwrite::portable_executable_t::find_data_rvas()
 	const auto img = image();
 	const auto nt_headers = img->nt_headers();
 
+	add_load_config_rvas(img);
 	add_data_directory_rvas(nt_headers);
 	add_import_rvas(nt_headers);
 	add_delay_import_rvas(nt_headers);

@@ -361,6 +361,11 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 
 			process_unwind_info(pe, rva_t{ runtime_function->begin_address }, unwind_info);
 
+			if (unwind_info->size_of_prolog)
+			{
+				context.fh_prologues.push_back({ .begin = pe.add_rva(runtime_function->begin_address), .prolog_size = unwind_info->size_of_prolog });
+			}
+
 			if (unwind_info->has_chained_function())
 			{
 				context.handler_functions.insert(runtime_function->begin_address);
@@ -413,8 +418,8 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 					context.fh_function_ranges.push_back({ .begin= pe.add_rva(runtime_function->begin_address), .end=
 						pe.add_rva(runtime_function->end_address) });
 
-					context.fh_prologues.push_back({ .begin= pe.add_rva(runtime_function->begin_address), .prolog_size=
-						unwind_info->size_of_prolog });
+					/*context.fh_prologues.push_back({ .begin= pe.add_rva(runtime_function->begin_address), .prolog_size=
+						unwind_info->size_of_prolog });*/
 				}
 			}
 		}

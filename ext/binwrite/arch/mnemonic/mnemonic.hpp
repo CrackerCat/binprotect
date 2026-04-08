@@ -34,6 +34,8 @@ namespace binwrite
 		static const mnemonic_t add;
 		static const mnemonic_t neg;
 		static const mnemonic_t mov;
+		static const mnemonic_t movsb;
+		static const mnemonic_t cpuid_;
 		static const mnemonic_t jmp;
 		static const mnemonic_t jz;
 		static const mnemonic_t jnz;

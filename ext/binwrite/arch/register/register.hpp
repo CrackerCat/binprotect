@@ -140,6 +140,8 @@ namespace binwrite
 		[[nodiscard]] register_t of_size(register_t::size_type size) const;
 
 		[[nodiscard]] bool is_general_purpose() const;
+
+		[[nodiscard]] bool is_volatile() const;
 		[[nodiscard]] bool is_non_volatile() const;
 
 		bool operator==(const register_family_t& other) const;
@@ -168,6 +170,7 @@ namespace binwrite
 
 		static const register_family_t flags;
 
+		static const std::array<register_family_t, 7> _volatile;
 		static const std::array<register_family_t, 9> non_volatile;
 		static const std::array<register_family_t, 14> general_purpose;
 		static const std::array<register_family_t, 16> families;

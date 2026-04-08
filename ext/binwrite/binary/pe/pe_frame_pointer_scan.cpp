@@ -47,7 +47,12 @@ namespace binwrite
 		block_insertion_list_t& block_instructions,
 		register_family_t check_family,
 		bool stop_at_epilogue,
-		const std::vector<register_family_t>* extra_families = nullptr);
+		const std::vector<register_family_t>& extra_families = { });
+
+	void collect_extra_stack_pointer_families(
+		const std::shared_ptr<basic_block_t>& basic_block,
+		std::vector<register_family_t>& extra_families,
+		register_family_t check_family);
 
 	void assign_handler_blocks_to_function(
 		portable_executable_t& pe,
@@ -357,7 +362,7 @@ void binwrite::adjust_displacements_in_block(
 	block_insertion_list_t& block_instructions,
 	const register_family_t check_family,
 	const bool stop_at_epilogue,
-	const std::vector<register_family_t>* extra_families)
+	const std::vector<register_family_t>& extra_families)
 {
 	const auto instructions = basic_block->instructions();
 
@@ -382,12 +387,8 @@ void binwrite::adjust_displacements_in_block(
 			auto mem = visible_operand.mem();
 			const auto base_family = mem.base.family();
 
-			bool family_match = (base_family == check_family);
-
-			if (!family_match && extra_families)
-			{
-				family_match = std::ranges::contains(*extra_families, base_family);
-			}
+			const bool family_match = base_family == check_family ||
+				std::ranges::contains(extra_families, base_family);
 
 			if (!family_match || current_stack_offset > mem.displacement)
 			{
@@ -401,6 +402,36 @@ void binwrite::adjust_displacements_in_block(
 			const auto compiled = reassembled->compile();
 
 			reassemble_displacement_instruction(pe, basic_block, j, instruction, *compiled, block_instructions);
+		}
+	}
+}
+
+void binwrite::collect_extra_stack_pointer_families(
+	const std::shared_ptr<basic_block_t>& basic_block,
+	std::vector<register_family_t>& extra_families,
+	const register_family_t check_family)
+{
+	for (const auto& instruction : basic_block->instructions())
+	{
+		const auto& disassembly = instruction.disassemble();
+
+		const auto visible_operands = disassembly.visible_operands();
+
+		if (disassembly.is_mov() && 2 <= visible_operands.size())
+		{
+			const auto& destination_operand = visible_operands[0];
+			const auto& source_operand = visible_operands[1];
+
+			if (destination_operand.is_reg() && source_operand.is_reg())
+			{
+				const auto source_register = source_operand.reg().value;
+
+				if (source_register.family() == check_family)
+				{
+					const auto destination_register = destination_operand.reg().value;
+					extra_families.push_back(destination_register.family());
+				}
+			}
 		}
 	}
 }
@@ -509,8 +540,6 @@ void binwrite::adjust_catch_handler_displacements(
 	block_insertion_list_t& block_instructions,
 	std::vector<rva_t>& processed_catch_functions)
 {
-	std::vector frame_families = { register_family_t::dx };
-
 	for (const auto& catch_rva : catch_rvas)
 	{
 		if (std::ranges::contains(processed_catch_functions, catch_rva))
@@ -527,36 +556,14 @@ void binwrite::adjust_catch_handler_displacements(
 
 		processed_catch_functions.push_back(catch_rva);
 
+		std::vector<register_family_t> frame_families = { };
+
 		for (const auto& basic_block : catch_function->basic_blocks())
 		{
-			const auto instructions = basic_block->instructions();
-
-			for (const auto& instruction : instructions)
-			{
-				auto& disassembly = instruction.disassemble();
-
-				const auto visible_operands = disassembly.visible_operands();
-
-				if (disassembly.is_mov() && 2 <= visible_operands.size())
-				{
-					const auto& destination_operand = visible_operands[0];
-					const auto& source_operand = visible_operands[1];
-
-					if (destination_operand.is_reg() && source_operand.is_reg())
-					{
-						const auto source_register = source_operand.reg().value;
-
-						if (std::ranges::contains(frame_families, source_register.family()))
-						{
-							const auto destination_register = destination_operand.reg().value;
-							frame_families.push_back(destination_register.family());
-						}
-					}
-				}
-			}
+			collect_extra_stack_pointer_families(basic_block, frame_families, register_family_t::sp);
 
 			adjust_displacements_in_block(pe, basic_block, current_stack_offset, block_instructions,
-				register_family_t::sp, false, &frame_families);
+				register_family_t::sp, false, frame_families);
 		}
 	}
 }
@@ -570,14 +577,12 @@ void binwrite::split_fh_prologues(portable_executable_t& pe, const exception_con
 			continue;
 		}
 
-		const auto begin_rva = prologue.begin->value();
-		const auto prologue_end_rva = begin_rva + prologue.prolog_size;
+		const auto prologue_end_rva = prologue.begin->value() + prologue.prolog_size;
 
-		const auto basic_block = pe.find_basic_block(rva_t{ begin_rva });
+		const auto basic_block = pe.find_basic_block(*prologue.begin);
 
 		if (!basic_block)
 		{
-			spdlog::warn("prologue split: no block at 0x{:X}", begin_rva);
 			continue;
 		}
 
@@ -604,13 +609,14 @@ void binwrite::split_fh_prologues(portable_executable_t& pe, const exception_con
 
 		if (exact_boundary && split_index > 0 && split_index < basic_block->count())
 		{
-			pe.split_basic_block(*basic_block, split_index);
+			const auto new_block = pe.split_basic_block(*basic_block, split_index);
+
 			basic_block->set_skip(true);
-			spdlog::info("prologue split: 0x{:X} at index {} (prologue {} bytes)", begin_rva, split_index, prologue.prolog_size);
-		}
-		else
-		{
-			spdlog::warn("prologue split: no exact boundary at 0x{:X} (prolog={}, accumulated=0x{:X}, exact={})", begin_rva, prologue.prolog_size, accumulated_rva, exact_boundary);
+
+			if (const auto function = pe.find_function(*prologue.begin))
+			{
+				function->add_basic_block(new_block);
+			}
 		}
 	}
 }

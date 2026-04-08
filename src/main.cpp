@@ -140,6 +140,7 @@ static void obfuscate_exceptions_pe_binary(binwrite::portable_executable_t& pe)
 
 	pe.disassemble();
 
+	binwrite::split_fh_prologues(pe, exceptions_context);
 	binwrite::process_throw_info(pe);
 	binwrite::rewrite_frame_pointers(pe, exceptions_context);
 
@@ -164,8 +165,6 @@ static void obfuscate_exceptions_pe_binary(binwrite::portable_executable_t& pe)
 		binprotect::control_flow::flattening::do_pass(pe, *function, is_block_fixed);
 	}
 
-	binwrite::split_fh_prologues(pe, exceptions_context);
-
 	const auto vm_contexts = obfuscate_binary_blocks(pe, exceptions_context);
 
 	binprotect::vm::emit_runtime_functions(pe, vm_contexts, exceptions_context.exception_directory_rva,
@@ -175,6 +174,11 @@ static void obfuscate_exceptions_pe_binary(binwrite::portable_executable_t& pe)
 static void obfuscate_non_exceptions_binary(binwrite::binary_t& binary)
 {
 	binary.disassemble();
+
+	for (const auto& function : binary.functions())
+	{
+		binprotect::control_flow::flattening::do_pass(binary, *function);
+	}
 
 	obfuscate_binary_blocks(binary);
 }
@@ -214,7 +218,7 @@ std::int32_t main()
 		spdlog::info("binary will be obfuscated without exceptions support");
 
 		obfuscate_non_exceptions_binary(pe);
-	}	
+	}
 
 	pe.update_rva_references();
 
