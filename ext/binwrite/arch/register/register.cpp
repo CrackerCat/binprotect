@@ -1,5 +1,5 @@
 #include "register.hpp"
-#include "../../math/random.hpp"
+#include "../../util/random.hpp"
 
 binwrite::register_t::value_type binwrite::register_t::value() const
 {
@@ -124,7 +124,7 @@ binwrite::register_family_t binwrite::register_family_t::random(const std::span<
 
 	do
 	{
-		random_family = math::random_entry<register_family_t>(_volatile);
+		random_family = util::random_entry<register_family_t>(_volatile);
 
 	} while (std::ranges::contains(excluding, random_family));
 

@@ -2,7 +2,7 @@
 #include "../assembler/assembler.hpp"
 
 #include <binwrite/disassembler/disassembler.hpp>
-#include <binwrite/math/random.hpp>
+#include <binwrite/util/random.hpp>
 #include <spdlog/spdlog.h>
 
 struct cff_block_t
@@ -25,7 +25,7 @@ static std::vector<cff_block_t> collect_cff_blocks(const binwrite::binary_t& bin
 
 		do
 		{
-			id = binwrite::math::random_integral<std::uint16_t>();
+			id = binwrite::util::random_integral<std::uint16_t>();
 		} while (std::ranges::any_of(cff_blocks, [id](const cff_block_t& cff_block) { return cff_block.id == id; }));
 
 		const auto fallthrough_block = function.fallthrough_block(basic_block);
@@ -238,7 +238,7 @@ void binprotect::control_flow::flattening::do_pass(binwrite::binary_t& binary, b
 
 	const auto stub_insert_rva = dispatcher_block->rva();
 
-	binwrite::math::shuffle<cff_block_t>(cff_blocks);
+	binwrite::util::shuffle<cff_block_t>(cff_blocks);
 
 	flatten_blocks(binary, stub_insert_rva, dispatcher_block, entry_block, id_register_family, cff_blocks, is_block_fixed);
 

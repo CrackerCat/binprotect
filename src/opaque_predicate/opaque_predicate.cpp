@@ -2,7 +2,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include <binwrite/math/random.hpp>
+#include <binwrite/util/random.hpp>
 #include "../assembler/assembler.hpp"
 #include "../mba/flag_behaviour.hpp"
 
@@ -85,7 +85,7 @@ static void shuffle_block_copy(binwrite::binary_t& binary, binwrite::basic_block
 
 		for (auto& visible_operand : visible_operands)
 		{
-			visible_operand = binwrite::math::random_entry<binwrite::decoded_operand_t>(block_operands);
+			visible_operand = binwrite::util::random_entry<binwrite::decoded_operand_t>(block_operands);
 		}
 
 		if (const auto new_instruction = make_assembler_instruction(instruction_disassembly))
@@ -165,11 +165,11 @@ static std::vector<binwrite::instruction_t> form_fermat_opaque(const bool shuffl
 	}
 
 	// load variables
-	instructions.push_back(lea_instruction(encode_mem_operand(binwrite::register_t::rsp, binwrite::math::random_integral<std::uint16_t>(), 8), registers[0]).value());
-	instructions.push_back(lea_instruction(encode_mem_operand(binwrite::register_t::rip, binwrite::math::random_integral<std::uint16_t>(), 8), registers[1]).value());
-	instructions.push_back(sub_instruction(encode_unsigned_imm_operand(binwrite::math::random_integral<std::uint16_t>()), registers[2]).value());
+	instructions.push_back(lea_instruction(encode_mem_operand(binwrite::register_t::rsp, binwrite::util::random_integral<std::uint16_t>(), 8), registers[0]).value());
+	instructions.push_back(lea_instruction(encode_mem_operand(binwrite::register_t::rip, binwrite::util::random_integral<std::uint16_t>(), 8), registers[1]).value());
+	instructions.push_back(sub_instruction(encode_unsigned_imm_operand(binwrite::util::random_integral<std::uint16_t>()), registers[2]).value());
 
-	const std::uint32_t power = binwrite::math::random_integral<std::uint32_t>(3, 7);
+	const std::uint32_t power = binwrite::util::random_integral<std::uint32_t>(3, 7);
 
 	const binwrite::register_t holder_register = registers[variable_count];
 
@@ -209,7 +209,7 @@ void binprotect::opaque_predicate::do_pass(binwrite::binary_t& binary,
 
 	const auto original_block = binary.split_basic_block(basic_block, 1);
 
-	const bool shuffle_blocks = binwrite::math::random_bool();
+	const bool shuffle_blocks = binwrite::util::random_bool();
 
 	std::shared_ptr<binwrite::basic_block_t> start_block = original_block;
 	std::shared_ptr<binwrite::basic_block_t> end_block = block_copy;

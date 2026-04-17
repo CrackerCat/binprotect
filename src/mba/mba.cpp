@@ -1,7 +1,7 @@
 #include "mba.hpp"
 #include "flag_behaviour.hpp"
 
-#include <binwrite/math/random.hpp>
+#include <binwrite/util/random.hpp>
 #include "../assembler/assembler.hpp"
 
 #include <functional>
@@ -246,7 +246,7 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 	const binwrite::register_family_t unused_register_family = disassembled_instruction.find_unused_register();
 	const binwrite::register_family_t second_unused_register_family = disassembled_instruction.find_unused_register(unused_register_family);
 
-	const auto& callback = binwrite::math::random_entry<mba_callback_t>(callbacks);
+	const auto& callback = binwrite::util::random_entry<mba_callback_t>(callbacks);
 
 	return execute_mba_callback(callback, disassembled_instruction, x, y, decoded_x.size(), should_emulate_flags,
 	                            unused_register_family, second_unused_register_family);

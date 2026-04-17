@@ -1,5 +1,5 @@
 #include "pe_exceptions.hpp"
-#include "../../math/serialize.hpp"
+#include "../../util/serialize.hpp"
 #include "../../assembler/assembler.hpp"
 #include "../../arch/mnemonic/mnemonic.hpp"
 #include "../../disassembler/disassembler.hpp"
@@ -305,8 +305,8 @@ static void apply_frame_pointer_unwind_info(binwrite::portable_executable_t& pe,
 	const binwrite::rva_t codes_end_rva(static_cast<binwrite::rva_t::value_type>(codes_end - buffer.data()));
 	const binwrite::rva_t codes_start_rva(static_cast<binwrite::rva_t::value_type>(codes_start - buffer.data()));
 
-	const auto push_bytes = binwrite::math::serialize_bytes(push_code);
-	const auto frame_pointer_bytes = binwrite::math::serialize_bytes(frame_pointer_code);
+	const auto push_bytes = binwrite::util::serialize_bytes(push_code);
+	const auto frame_pointer_bytes = binwrite::util::serialize_bytes(frame_pointer_code);
 
 	unwind_code_count += 4;
 	constexpr std::uint8_t frame_offset = 0;

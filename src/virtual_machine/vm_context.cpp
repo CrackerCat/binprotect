@@ -105,7 +105,7 @@ void vm_context_t::free_hardware_register(const hardware_register_t& hardware_re
 
 void vm_context_t::shuffle_registers()
 {
-	binwrite::math::shuffle<binwrite::register_family_t>(stack_registers_);
+	binwrite::util::shuffle<binwrite::register_family_t>(stack_registers_);
 }
 
 void vm_context_t::push_registers(std::vector<binwrite::instruction_t>& instructions) const

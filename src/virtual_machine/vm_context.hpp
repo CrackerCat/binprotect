@@ -8,7 +8,7 @@
 #include <binwrite/arch/instruction/instruction.hpp>
 #include <binwrite/assembler/assembler.hpp>
 #include <binwrite/binary/binary.hpp>
-#include <binwrite/math/random.hpp>
+#include <binwrite/util/random.hpp>
 
 #include "../assembler/assembler.hpp"
 #include "hardware_register.hpp"
@@ -214,7 +214,7 @@ protected:
 			return;
 		}
 
-		if (binwrite::math::random_bool())
+		if (binwrite::util::random_bool())
 		{
 			instructions.push_back(push_instruction(register_family.qword).value());
 		}
@@ -238,7 +238,7 @@ protected:
 			return;
 		}
 
-		if (binwrite::math::random_bool())
+		if (binwrite::util::random_bool())
 		{
 			instructions.push_back(pop_instruction(register_family.qword).value());
 		}

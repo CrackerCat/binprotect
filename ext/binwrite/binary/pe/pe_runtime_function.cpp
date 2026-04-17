@@ -1,6 +1,6 @@
 #include "pe.hpp"
 #include "../rva/rva.hpp"
-#include "../../math/serialize.hpp"
+#include "../../util/serialize.hpp"
 
 #include <portable-executable/image.hpp>
 

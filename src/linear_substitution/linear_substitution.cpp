@@ -1,7 +1,7 @@
 #include "linear_substitution.hpp"
 #include "../assembler/assembler.hpp"
 
-#include <binwrite/math/random.hpp>
+#include <binwrite/util/random.hpp>
 #include <spdlog/spdlog.h>
 
 static std::int64_t generate_random_signed_constant(const std::uint32_t bit_count)
@@ -9,12 +9,12 @@ static std::int64_t generate_random_signed_constant(const std::uint32_t bit_coun
 	switch (bit_count)
 	{
 	case 8:
-		return binwrite::math::random_integral<std::int64_t>(std::numeric_limits<std::int8_t>::min(), std::numeric_limits<std::int8_t>::max());
+		return binwrite::util::random_integral<std::int64_t>(std::numeric_limits<std::int8_t>::min(), std::numeric_limits<std::int8_t>::max());
 	case 16:
-		return binwrite::math::random_integral<std::int16_t>();
+		return binwrite::util::random_integral<std::int16_t>();
 	case 32:
 	case 64:
-		return binwrite::math::random_integral<std::int32_t>();
+		return binwrite::util::random_integral<std::int32_t>();
 	default: ;
 	}
 
@@ -42,12 +42,12 @@ static std::uint64_t generate_random_unsigned_constant(const std::uint32_t bit_c
 	switch (bit_count)
 	{
 	case 8:
-		return binwrite::math::random_integral<std::uint64_t>(std::numeric_limits<std::uint8_t>::min(), std::numeric_limits<std::uint8_t>::max());
+		return binwrite::util::random_integral<std::uint64_t>(std::numeric_limits<std::uint8_t>::min(), std::numeric_limits<std::uint8_t>::max());
 	case 16:
-		return binwrite::math::random_integral<std::uint16_t>();
+		return binwrite::util::random_integral<std::uint16_t>();
 	case 32:
 	case 64:
-		return binwrite::math::random_integral<std::uint32_t>();
+		return binwrite::util::random_integral<std::uint32_t>();
 	default: ;
 	}
 

@@ -1,6 +1,6 @@
 #include "pe.hpp"
 #include "../../arch/instruction/basic_block.hpp"
-#include "../../math/serialize.hpp"
+#include "../../util/serialize.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -101,7 +101,7 @@ static void compile_relocation_block_descriptor(std::vector<std::uint8_t>& bytes
 			.size_of_block = block_size
 	};
 
-	const auto serialized_block_descriptor = binwrite::math::serialize_bytes(block_descriptor);
+	const auto serialized_block_descriptor = binwrite::util::serialize_bytes(block_descriptor);
 
 	bytes.insert_range(bytes.end(), serialized_block_descriptor);
 }
@@ -134,7 +134,7 @@ static std::vector<std::uint8_t> compile_relocation_directory(reloc_pages_t& rel
 
 		for (const auto& entry_descriptor : entry_descriptors)
 		{
-			const auto serialized_entry_descriptor = binwrite::math::serialize_bytes(entry_descriptor);
+			const auto serialized_entry_descriptor = binwrite::util::serialize_bytes(entry_descriptor);
 
 			bytes.insert_range(bytes.end(), serialized_entry_descriptor);
 		}

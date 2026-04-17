@@ -3,7 +3,7 @@
 #include <ranges>
 #include <span>
 
-namespace binwrite::math
+namespace binwrite::util
 {
 	inline std::mt19937_64& make_mersenne()
 	{

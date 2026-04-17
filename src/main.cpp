@@ -1,12 +1,12 @@
 #include <binwrite/binary/pe/pe.hpp>
 #include <binwrite/binary/pe/pe_exceptions.hpp>
 #include <binwrite/binary/symbols/map_parsing.hpp>
+#include <binwrite/binary/symbols/pdb_parsing.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdint>
-#include <cstdio>
 #include <fstream>
 #include <ranges>
 #include <string>
@@ -214,7 +214,8 @@ std::int32_t main()
 
 	bool exceptions_support = pe.has_exceptions_directory();
 
-	if (!binwrite::symbols::map::parse(pe, "input.map"))
+	if (!binwrite::symbols::map::parse(pe, "input.map") &&
+		!binwrite::symbols::pdb::parse(pe, "input.pdb"))
 	{
 		spdlog::warn("unable to find or parse symbol file");
 

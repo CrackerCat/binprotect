@@ -2,7 +2,7 @@
 
 #include "../assembler/assembler.hpp"
 #include "hardware_register.hpp"
-#include "binwrite/math/random.hpp"
+#include "binwrite/util/random.hpp"
 
 class obfuscated_operand_t
 {
@@ -69,7 +69,7 @@ public:
 
 	explicit xored_operand_t(const bool is_result)
 			:	obfuscated_operand_t(is_result),
-				key_(binwrite::math::random_integral<key_type>()) { }
+				key_(binwrite::util::random_integral<key_type>()) { }
 
 	binwrite::encoder_operand_t encode_imm(const binwrite::encoder_operand_t::imm_t imm) override
 	{
@@ -99,7 +99,7 @@ protected:
 
 static std::unique_ptr<obfuscated_operand_t> random_obfuscated_operand(const bool is_result)
 {
-	if (binwrite::math::random_bool())
+	if (binwrite::util::random_bool())
 	{
 		return std::make_unique<negated_operand_t>(is_result);
 	}

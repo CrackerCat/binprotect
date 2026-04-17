@@ -1,7 +1,7 @@
 #pragma once
 #include <span>
 
-namespace binwrite::math
+namespace binwrite::util
 {
 	template <class T>
 	std::span<const std::uint8_t> serialize_bytes(const T& info)
