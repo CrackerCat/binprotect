@@ -4,11 +4,13 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
+#include <ranges>
 #include <string>
-#include <unordered_set>
-#include <chrono>
+#include <vector>
 
 #include "virtual_machine/virtual_machine.hpp"
 #include "virtual_machine/vm_context.hpp"
@@ -58,7 +60,6 @@ static void mutate_basic_block(binwrite::binary_t& binary, binwrite::basic_block
 static void run_obfuscation_loop(
 	binwrite::binary_t& binary,
 	const binwrite::exception_context_t& context,
-	const std::unordered_set<binwrite::rva_t::value_type>& owned_blocks,
 	const std::shared_ptr<binwrite::rva_t>& vm_insertion_rva,
 	std::vector<std::shared_ptr<binwrite::basic_block_t>>& virtual_machine_blocks,
 	std::vector<std::shared_ptr<vm_context_t>>& vm_contexts,
@@ -76,9 +77,10 @@ static void run_obfuscation_loop(
 			continue;
 		}
 
-		const auto basic_block_rva = basic_block->rva()->value();
+		const auto basic_block_rva = basic_block->rva();
+		const auto block_rva_value = basic_block_rva->value();
 
-		if (!context.is_in_protected_range(basic_block_rva))
+		if (!context.is_in_protected_range(block_rva_value))
 		{
 			if (const auto vm_context = binprotect::vm::do_pass(binary, *basic_block, vm_insertion_rva, virtual_machine_blocks))
 			{
@@ -87,7 +89,7 @@ static void run_obfuscation_loop(
 			}
 		}
 
-		if (!context.is_in_fh_range(basic_block_rva) && owned_blocks.contains(basic_block_rva))
+		if (!context.is_in_fh_range(block_rva_value))
 		{
 			binprotect::opaque_predicate::do_pass(binary, *basic_block, opaque_blocks);
 		}
@@ -108,17 +110,7 @@ static std::vector<std::shared_ptr<vm_context_t>> obfuscate_binary_blocks(binwri
 	std::vector<std::shared_ptr<binwrite::basic_block_t>> opaque_blocks;
 	const auto vm_insertion_rva = binary.add_rva(code_section->rva().value() + code_section->size());
 
-	std::unordered_set<binwrite::rva_t::value_type> owned_blocks;
-
-	for (const auto& function : binary.functions())
-	{
-		for (const auto& block : function->basic_blocks())
-		{
-			owned_blocks.insert(block->rva()->value());
-		}
-	}
-
-	run_obfuscation_loop(binary, exceptions_context, owned_blocks, vm_insertion_rva,
+	run_obfuscation_loop(binary, exceptions_context, vm_insertion_rva,
 		virtual_machine_blocks, vm_contexts, opaque_blocks);
 
 	for (const auto& basic_block : opaque_blocks)
@@ -144,23 +136,19 @@ static void obfuscate_exceptions_pe_binary(binwrite::portable_executable_t& pe)
 	binwrite::process_throw_info(pe);
 	binwrite::rewrite_frame_pointers(pe, exceptions_context);
 
-	const auto is_block_fixed = [&exceptions_context](const binwrite::rva_t::value_type block_rva) -> bool
+	const auto is_block_fixed = [&exceptions_context](const binwrite::rva_t::value_type rva) -> bool
 	{
-		return exceptions_context.is_in_protected_range(block_rva);
+		return exceptions_context.is_in_protected_range(rva);
 	};
 
 	for (const auto& function : pe.functions())
 	{
 		const auto function_rva = function->rva()->value();
 
-		if (exceptions_context.is_fh_function(function_rva))
+		if (exceptions_context.is_fh_function(function_rva) || exceptions_context.is_handler_function(function_rva))
 		{
 			continue;
 		}
-
-		const auto begin_before = function->rva()->value();
-		const auto end_it = std::ranges::find_if(exceptions_context.exception_function_ranges,
-			[begin_before](const auto& range) { return range.begin->value() == begin_before; });
 
 		binprotect::control_flow::flattening::do_pass(pe, *function, is_block_fixed);
 	}
@@ -181,6 +169,32 @@ static void obfuscate_non_exceptions_binary(binwrite::binary_t& binary)
 	}
 
 	obfuscate_binary_blocks(binary);
+}
+
+static void realign_unwind_info(binwrite::portable_executable_t& pe)
+{
+	const auto image = pe.image();
+
+	std::vector<std::shared_ptr<binwrite::rva_t>> unwind_info_rvas;
+
+	for (const auto rf : image->runtime_functions())
+	{
+		const auto unwind_info_rva = static_cast<std::uint32_t>(reinterpret_cast<const std::uint8_t*>(rf.unwind_info) - image->as<const std::uint8_t*>());
+
+		unwind_info_rvas.push_back(pe.add_rva(unwind_info_rva));
+	}
+
+	std::ranges::sort(unwind_info_rvas, [](const auto& a, const auto& b) { return a->value() < b->value(); });
+
+	for (const auto& rva : unwind_info_rvas)
+	{
+		constexpr std::uint32_t alignment = sizeof(std::uint32_t);
+
+		if (const auto padding_size = (alignment - rva->value() % alignment) % alignment)
+		{
+			pe.insert(*rva, static_cast<binwrite::rva_t::size_type>(padding_size), true);
+		}
+	}
 }
 
 std::int32_t main()
@@ -219,6 +233,10 @@ std::int32_t main()
 
 		obfuscate_non_exceptions_binary(pe);
 	}
+
+	pe.update_rva_references();
+
+	realign_unwind_info(pe);
 
 	pe.update_rva_references();
 

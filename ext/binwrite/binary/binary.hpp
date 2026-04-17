@@ -47,6 +47,8 @@ namespace binwrite
 
 		std::shared_ptr<function_t> find_function(rva_t rva) const;
 		std::shared_ptr<function_t> create_function(const std::string& name, rva_t rva);
+		std::shared_ptr<function_t> create_function(rva_t rva);
+
 		void add_function(const std::shared_ptr<function_t>& function);
 		void remove_function(const std::shared_ptr<function_t>& function);
 

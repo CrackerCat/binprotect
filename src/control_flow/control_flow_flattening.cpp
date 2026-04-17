@@ -75,8 +75,6 @@ static std::shared_ptr<binwrite::basic_block_t> insert_dispatcher_block(binwrite
 	const auto split_block = binary.split_basic_block(*entry_block,
 		static_cast<binwrite::basic_block_t::size_type>(original_count));
 
-	function.add_basic_block(split_block);
-
 	return split_block;
 }
 
@@ -224,43 +222,7 @@ void binprotect::control_flow::flattening::do_pass(binwrite::binary_t& binary, b
 		return;
 	}
 
-	/*for (const auto& basic_block : function.basic_blocks())
-	{
-		while (basic_block->count() > 1)
-		{
-			const auto& last = basic_block->last_instruction().disassemble();
-
-			if (!(last.is_nop() || last.is_int()))
-			{
-				break;
-			}
-
-			basic_block->erase(binary, basic_block->count() - 1);
-		}
-	}*/
-
 	std::vector<cff_block_t> cff_blocks = collect_cff_blocks(binary, function);
-
-	/*for (const auto& cff_block : cff_blocks)
-	{
-		if (cff_block.fallthrough_block)
-		{
-			if (find_cff_block(cff_blocks, *cff_block.fallthrough_block->rva()) == cff_blocks.end())
-			{
-				spdlog::warn("CFF skip {}: can't find fallthrough cff block", function.name());
-				return;
-			}
-		}
-
-		if (cff_block.target_block)
-		{
-			if (find_cff_block(cff_blocks, *cff_block.target_block->rva()) == cff_blocks.end())
-			{
-				spdlog::warn("CFF skip {}: can't find target cff block", function.name());
-				return;
-			}
-		}
-	}*/
 
 	const binwrite::register_family_t id_register_family = binwrite::register_family_t::random();
 

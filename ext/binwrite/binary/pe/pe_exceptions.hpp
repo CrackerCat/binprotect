@@ -25,24 +25,17 @@ namespace binwrite
 
 		std::vector<function_range_t> fh_function_ranges;
 		std::vector<prologue_info_t> fh_prologues;
-		std::vector<function_range_t> exception_function_ranges;
 		std::shared_ptr<rva_t> exception_directory_rva;
 		std::shared_ptr<rva_t> unwind_info_insertion_rva;
 
 		std::unordered_map<rva_t::value_type, std::vector<rva_t>> func_handlers;
 		std::unordered_map<rva_t::value_type, std::vector<rva_t>> catch_handlers;
-		std::unordered_set<rva_t::value_type> handler_functions;
+		std::vector<std::shared_ptr<rva_t>> handler_function_rvas;
 		std::vector<function_range_t> protected_code_ranges;
 
 		[[nodiscard]] bool is_fh_function(const rva_t::value_type function_rva) const
 		{
 			return std::ranges::any_of(fh_function_ranges,
-				[function_rva](const auto& range) { return range.begin->value() == function_rva; });
-		}
-
-		[[nodiscard]] bool has_pdata(const rva_t::value_type function_rva) const
-		{
-			return std::ranges::any_of(exception_function_ranges,
 				[function_rva](const auto& range) { return range.begin->value() == function_rva; });
 		}
 
@@ -56,6 +49,12 @@ namespace binwrite
 		{
 			return std::ranges::any_of(protected_code_ranges,
 				[rva](const auto& range) { return range.begin->value() <= rva && rva < range.end->value(); });
+		}
+
+		[[nodiscard]] bool is_handler_function(const rva_t::value_type function_rva) const
+		{
+			return std::ranges::any_of(handler_function_rvas,
+				[function_rva](const auto& rva) { return rva->value() == function_rva; });
 		}
 	};
 

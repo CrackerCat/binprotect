@@ -25,9 +25,7 @@ static void process_unwind_info(binary_t& binary, const rva_t function_rva, cons
 		return;
 	}
 
-	const std::string name = std::format("sub_{:X}", function_rva.value());
-
-	binary.create_function(name, function_rva);
+	binary.create_function(function_rva);
 }
 
 struct c_scope_table_entry_t
@@ -85,25 +83,34 @@ static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* 
 			return false;
 		}
 
-		pe.add_data_rva_ref(&table_entry->begin_rva);
-		pe.add_data_rva_ref(&table_entry->end_rva);
-		pe.add_data_rva_ref(&table_entry->handler_rva);
-		pe.add_data_rva_ref(&table_entry->target_rva);
-
 		protected_code_ranges.push_back({
 			.begin = pe.add_rva(table_entry->begin_rva),
 			.end = pe.add_rva(table_entry->end_rva)
-		});
+			});
+
+		if (pe.is_in_code_section(rva_t{ table_entry->begin_rva }))
+		{
+			pe.add_data_rva_ref(&table_entry->begin_rva);
+		}
+
+		if (pe.is_in_code_section(rva_t{ table_entry->end_rva }))
+		{
+			pe.add_data_rva_ref(&table_entry->end_rva);
+		}
 
 		if (pe.is_in_code_section(rva_t{ table_entry->handler_rva }))
 		{
+			pe.add_data_rva_ref(&table_entry->handler_rva);
+
 			pe.add_to_disassembly_queue(pe.add_rva(table_entry->handler_rva));
 		}
 
 		if (pe.is_in_code_section(rva_t{ table_entry->target_rva }))
 		{
+			pe.add_data_rva_ref(&table_entry->target_rva);
+
 			pe.add_to_disassembly_queue(pe.add_rva(table_entry->target_rva));
-			func_handlers.push_back(rva_t{ table_entry->target_rva });
+			func_handlers.emplace_back(table_entry->target_rva);
 		}
 	}
 
@@ -111,7 +118,7 @@ static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* 
 }
 
 static void register_func_info_refs(portable_executable_t& pe, const cfh4::func_info4_t& func_info,
-                                    const std::uint32_t data_rva)
+	const std::uint32_t data_rva)
 {
 	const auto program_start_rva = pe.add_rva(0);
 
@@ -288,7 +295,9 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 	const std::uint64_t image_base = reinterpret_cast<std::uint64_t>(pe.data());
 	const std::int32_t function_start = static_cast<std::int32_t>(runtime_function->begin_address);
 
-	if (cfh4::decompress_func_info(data, func_info, image_base, static_cast<std::int32_t>(pe.buffer().size()), function_start) == -1)
+	const auto header_size = cfh4::decompress_func_info(data, func_info, image_base, static_cast<std::int32_t>(pe.buffer().size()), function_start);
+
+	if (header_size == -1)
 	{
 		return false;
 	}
@@ -308,6 +317,7 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 		{
 			pe.add_data_rva_ref(reinterpret_cast<std::int32_t*>(entry.action_ref.ptr));
 			pe.add_to_disassembly_queue(pe.add_rva(static_cast<std::uint32_t>(entry.action)));
+			catch_handlers.emplace_back(static_cast<std::uint32_t>(entry.action));
 		}
 	}
 
@@ -327,7 +337,7 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 	const auto image = pe.image();
 
 	if (portable_executable::data_directory_t data_directory = image->nt_headers()->optional_header.data_directories.
-	                                                                  exception_directory; data_directory.present())
+		exception_directory; data_directory.present())
 	{
 		context.exception_directory_rva = pe.add_rva(data_directory.virtual_address);
 
@@ -348,9 +358,6 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 
 		for (std::uint32_t i = 0; i < count; i++, runtime_function++)
 		{
-			context.exception_function_ranges.push_back({ .begin= pe.add_rva(runtime_function->begin_address), .end=
-				pe.add_rva(runtime_function->end_address) });
-
 			pe.add_data_rva_ref(&runtime_function->begin_address);
 			pe.add_data_rva_ref(&runtime_function->end_address);
 			pe.add_data_rva_ref(&runtime_function->unwind_info_rva);
@@ -368,40 +375,25 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 
 			if (unwind_info->has_chained_function())
 			{
-				context.handler_functions.insert(runtime_function->begin_address);
-
 				const auto chained_function = unwind_info->language_specific_data<portable_executable::runtime_function_t>();
 				pe.add_to_disassembly_queue(pe.add_rva(chained_function->begin_address));
 
 				pe.add_data_rva_ref(&chained_function->begin_address);
 				pe.add_data_rva_ref(&chained_function->end_address);
 				pe.add_data_rva_ref(&chained_function->unwind_info_rva);
-
-				/*const auto chained_unwind_info = reinterpret_cast<const portable_executable::unwind_info_t*>(pe.data() + chained_function->unwind_info_rva);
-
-				if (chained_unwind_info->has_handler())
-				{
-					context.protected_code_ranges.push_back({
-						.begin = pe.add_rva(runtime_function->begin_address),
-						.end = pe.add_rva(runtime_function->end_address)
-					});
-
-					context.protected_code_ranges.push_back({
-						.begin = pe.add_rva(chained_function->begin_address),
-						.end = pe.add_rva(chained_function->end_address)
-					});
-				}*/
 			}
 
 			if (unwind_info->has_handler())
 			{
-				context.handler_functions.insert(runtime_function->begin_address);
-
 				const auto handler = unwind_info->language_specific_data<std::uint32_t>();
-				pe.add_data_rva_ref(handler);
-				pe.add_to_disassembly_queue(pe.add_rva(*handler));
-
 				const auto language_data = unwind_info->language_specific_data<std::uint32_t>() + 1;
+				const auto handler_rva = pe.add_rva(*handler);
+
+				pe.add_data_rva_ref(handler);
+				pe.create_function(*handler_rva);
+
+				context.handler_function_rvas.push_back(pe.add_rva(runtime_function->begin_address));
+				context.handler_function_rvas.push_back(handler_rva);
 
 				if (parse_c_scope_table(pe, language_data, unwind_info_rvas, context.protected_code_ranges,
 					context.func_handlers[runtime_function->begin_address]))
@@ -415,11 +407,8 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 				{
 					spdlog::info("successfully parsed FuncInfo4 at 0x{:X}", runtime_function->unwind_info_rva);
 
-					context.fh_function_ranges.push_back({ .begin= pe.add_rva(runtime_function->begin_address), .end=
+					context.fh_function_ranges.push_back({ .begin = pe.add_rva(runtime_function->begin_address), .end =
 						pe.add_rva(runtime_function->end_address) });
-
-					/*context.fh_prologues.push_back({ .begin= pe.add_rva(runtime_function->begin_address), .prolog_size=
-						unwind_info->size_of_prolog });*/
 				}
 			}
 		}

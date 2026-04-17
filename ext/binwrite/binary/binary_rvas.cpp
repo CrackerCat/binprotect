@@ -1,7 +1,6 @@
 #include "binary.hpp"
 
 #include <spdlog/spdlog.h>
-#include <ranges>
 
 void binwrite::binary_t::update_rva_references()
 {
@@ -23,24 +22,28 @@ void binwrite::binary_t::update_rva_references()
 			if (result.error() == rva_ref_t::error_t::instruction_length_changed)
 			{
 				update_section_headers();
+
 				i = 0;
 
 				continue;
 			}
 
-			spdlog::error("unable to update rva reference at 0x{:X}", rva_ref->self().value());
+			spdlog::error("unable to update rva reference at 0x{:X} (target=0x{:X}, is_code={}, error={})",
+				rva_ref->self().value(), rva_ref->target()->value(),
+				rva_ref->is_code_reference(), static_cast<int>(result.error()));
 		}
 
 		i++;
 	}
 
 	update_relocations();
+
 	update_section_headers();
 }
 
 void binwrite::binary_t::update_section_rvas(const rva_t disruption_rva, const rva_t::size_type disruption_size)
 {
-	for (const auto& section : sections_ | std::views::values)
+	for (const auto& [name, section] : sections_)
 	{
 		section->process_disruption(disruption_rva, disruption_size);
 	}

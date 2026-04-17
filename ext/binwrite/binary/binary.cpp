@@ -96,6 +96,13 @@ std::shared_ptr<binwrite::function_t> binwrite::binary_t::create_function(const 
 	return function;
 }
 
+std::shared_ptr<binwrite::function_t> binwrite::binary_t::create_function(const rva_t rva)
+{
+	const std::string name = std::format("sub_{:X}", rva.value());
+
+	return create_function(name, rva);
+}
+
 std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::create_basic_block(const rva_t rva, const std::span<const instruction_t> instructions)
 {
 	const auto bytes = group_instruction_bytes(instructions);
@@ -221,6 +228,19 @@ std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::split_basic_block(b
 	basic_blocks_.push_back(new_basic_block);
 	bb_index_dirty_ = true;
 
+	for (const auto& function : functions_)
+	{
+		for (const auto& function_block : function->basic_blocks())
+		{
+			if (*function_block == basic_block)
+			{
+				function->add_basic_block(new_basic_block);
+
+				break;
+			}
+		}
+	}
+
 	return new_basic_block;
 }
 
@@ -287,15 +307,17 @@ std::shared_ptr<binwrite::section_t> binwrite::binary_t::code_section() const
 
 std::shared_ptr<binwrite::section_t> binwrite::binary_t::data_section() const
 {
+	std::shared_ptr<section_t> result;
+
 	for (const auto& section : sections_ | std::views::values)
 	{
-		if (!section->code())
+		if (!section->code() && (!result || section->rva() < result->rva()))
 		{
-			return section;
+			result = section;
 		}
 	}
 
-	return { };
+	return result;
 }
 
 bool binwrite::binary_t::is_in_code_section(const rva_t rva) const

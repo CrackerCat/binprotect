@@ -74,7 +74,7 @@ std::shared_ptr<vm_context_t> binprotect::vm::do_pass(binwrite::binary_t& binary
                              std::shared_ptr<binwrite::rva_t> insertion_rva,
                              std::vector<std::shared_ptr<binwrite::basic_block_t>>& virtual_machine_blocks)
 {
-	const auto context = std::make_shared<vm_context_t>(binwrite::register_family_t::non_volatile);
+	const auto context = std::make_shared<vm_context_t>(binwrite::register_family_t::general_purpose);
 	context->set_insertion_rva(std::move(insertion_rva));
 
 	const std::span<const binwrite::instruction_t> original_instructions = basic_block.instructions();
@@ -161,12 +161,15 @@ void binprotect::vm::emit_runtime_functions(binwrite::portable_executable_t& pe,
 
 			std::vector<std::pair<std::uint8_t, portable_executable::unwind_register_t>> pushed_registers;
 			std::vector<portable_executable::unwind_code_t> unwind_codes;
+
 			std::uint8_t current_offset = 2;
 
 			for (const auto& register_family : stack_registers)
 			{
 				const auto reg = register_family.qword;
+
 				pushed_registers.emplace_back(current_offset, binwrite::get_unwind_register(reg));
+
 				current_offset += (reg.value() >= binwrite::register_t::r8.value()) ? 2 : 1;
 			}
 

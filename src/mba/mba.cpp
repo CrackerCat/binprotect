@@ -266,7 +266,11 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 		const auto& instruction = instructions[i];
 		const auto& disassembled_instruction = instruction.disassemble();
 
-		if (disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() || disassembled_instruction.has_lock())
+		const std::uint32_t basic_block_index = i + added;
+		const binwrite::rva_t instruction_rva = basic_block.instruction_rva(basic_block_index);
+
+		if (disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() ||
+			disassembled_instruction.has_lock() || binary.find_rva_ref(instruction_rva))
 		{
 			continue;
 		}
@@ -310,8 +314,6 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 		{
 			continue;
 		}
-
-		const std::uint32_t basic_block_index = i + added;
 
 		basic_block.insert(binary, obfuscated_instructions, basic_block_index);
 		basic_block.erase(binary, basic_block_index + static_cast<std::uint32_t>(obfuscated_instructions.size()));

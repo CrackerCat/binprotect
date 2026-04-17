@@ -5,6 +5,7 @@
 #include "../../disassembler/disassembler.hpp"
 
 #include <algorithm>
+#include <set>
 #include <portable-executable/image.hpp>
 #include <spdlog/spdlog.h>
 
@@ -24,8 +25,7 @@ namespace binwrite
 		const portable_executable::unwind_info_t* unwind_info,
 		register_family_t frame_register_family,
 		const portable_executable::runtime_function_t* runtime_function,
-		binary_t& binary,
-		bool& has_jump_table);
+		const binary_t& binary);
 
 	void reassemble_displacement_instruction(
 		portable_executable_t& pe,
@@ -394,6 +394,7 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 	const std::uint32_t count = data_directory.size / sizeof(portable_executable::runtime_function_t);
 	auto runtime_function = reinterpret_cast<const portable_executable::runtime_function_t*>(
 		buffer.data() + data_directory.virtual_address);
+
 	std::vector<rva_t> processed_catch_functions;
 
 	for (std::uint32_t f = 0; f < count; f++, runtime_function++)
@@ -424,23 +425,14 @@ void binwrite::rewrite_frame_pointers(portable_executable_t& pe, exception_conte
 		}
 
 		const register_t frame_register = register_family_t::bp.qword;
-		bool has_jump_table = false;
-
-		if (scan_function_for_rewrite_conflicts(*function, entry_block, original_unwind_info,
-			register_family_t::bp, runtime_function, pe, has_jump_table))
-		{
-			continue;
-		}
-
-		if (has_jump_table)
-		{
-			continue;
-		}
-
 		const auto unwind_register = get_unwind_register(frame_register);
 
-		if (has_unwind_register_conflict(unwind_info, unwind_register))
+		if (scan_function_for_rewrite_conflicts(*function, entry_block, original_unwind_info, register_family_t::bp,
+		                                        runtime_function, pe) || has_unwind_register_conflict(
+			unwind_info, unwind_register))
 		{
+			function->set_basic_blocks_skip(true);
+
 			continue;
 		}
 

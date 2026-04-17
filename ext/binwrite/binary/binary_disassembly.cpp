@@ -17,9 +17,29 @@ static void process_basic_block_target_branch(const binwrite::binary_t& binary,
 
 	if (!code_rva_ref)
 	{
-		if (binary.jump_table_targets(last_instruction_rva).empty())
+		const auto jt_targets = binary.jump_table_targets(last_instruction_rva);
+
+		if (jt_targets.empty())
 		{
-			spdlog::error("unable to find code rva ref of conditional jump");
+			spdlog::error("unable to find code rva ref of conditional jump at 0x{:X}", last_instruction_rva.value());
+			return;
+		}
+
+		for (const auto& jt_target : jt_targets)
+		{
+			const auto target_block = binary.find_basic_block(*jt_target);
+
+			if (!target_block)
+			{
+				continue;
+			}
+
+			if (!binary.find_function(*jt_target) && !function->find_basic_block(*jt_target))
+			{
+				function->add_basic_block(target_block);
+
+				process_function_basic_block(binary, function, target_block);
+			}
 		}
 
 		return;
@@ -155,6 +175,24 @@ void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 
 	while (true)
 	{
+		if (instruction_rva.value() + 16 <= buffer_.size())
+		{
+			const auto* p = buffer_.data() + instruction_rva.value();
+			bool all_zero = true;
+			bool all_cc = true;
+
+			for (std::uint32_t k = 0; k < 16; k++)
+			{
+				if (p[k] != 0x00) all_zero = false;
+				if (p[k] != 0xCC) all_cc = false;
+			}
+
+			if (all_zero || all_cc)
+			{
+				break;
+			}
+		}
+
 		const auto instruction_address = reinterpret_cast<const std::uint8_t*>(buffer_.data() + instruction_rva.value());
 		const auto disassembled_instruction = disassembler.disassemble(instruction_address);
 
@@ -239,9 +277,9 @@ bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
 
 void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva)
 {
-	if (0x6000 <= rva->value())
+	if (!is_in_code_section(*rva))
 	{
-		__debugbreak();
+		return;
 	}
 
 	if (!disassembly_queue_set_.contains(rva->value()) && !find_basic_block(*rva))

@@ -38,6 +38,20 @@ bool binwrite::disassembled_instruction_t::reads_register_family(const register_
 				return true;
 			}
 		}
+		else if (operand.is_mem())
+		{
+			const auto& mem = operand.mem();
+
+			if (mem.base != register_t::none && family == mem.base.family())
+			{
+				return true;
+			}
+
+			if (mem.index != register_t::none && family == mem.index.family())
+			{
+				return true;
+			}
+		}
 	}
 
 	return false;

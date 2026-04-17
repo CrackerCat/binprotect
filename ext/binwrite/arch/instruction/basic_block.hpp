@@ -95,6 +95,11 @@ namespace binwrite
 			return *rva_ <= rva && rva < end_rva();
 		}
 
+		bool operator==(const basic_block_t& other) const
+		{
+			return rva_ == other.rva_;
+		}
+
 	protected:
 		void rebuild_offsets();
 

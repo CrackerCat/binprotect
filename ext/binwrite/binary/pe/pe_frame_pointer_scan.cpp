@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <portable-executable/image.hpp>
-#include <spdlog/spdlog.h>
 
 using block_insertion_list_t = std::vector<std::tuple<std::shared_ptr<binwrite::basic_block_t>, binwrite::instruction_t, std::uint32_t>>;
 
@@ -29,8 +28,7 @@ namespace binwrite
 		const portable_executable::unwind_info_t* unwind_info,
 		register_family_t frame_register_family,
 		const portable_executable::runtime_function_t* runtime_function,
-		binary_t& binary,
-		bool& has_jump_table);
+		const binary_t& binary);
 
 	void reassemble_displacement_instruction(
 		portable_executable_t& pe,
@@ -218,8 +216,7 @@ bool binwrite::scan_function_for_rewrite_conflicts(
 	const portable_executable::unwind_info_t* unwind_info,
 	const register_family_t frame_register_family,
 	const portable_executable::runtime_function_t* runtime_function,
-	binary_t& binary,
-	bool& has_jump_table)
+	const binary_t& binary)
 {
 	const std::int64_t prologue_stack_offset = compute_prologue_stack_offset(entry_block, unwind_info);
 
@@ -231,6 +228,12 @@ bool binwrite::scan_function_for_rewrite_conflicts(
 		{
 			auto& instruction = instructions[i];
 			auto& disassembly = instruction.disassemble();
+
+			if (disassembly.mnemonic() != mnemonic_t::pop &&
+				disassembly.writes_register_family(frame_register_family))
+			{
+				return true;
+			}
 
 			if (disassembly.is_jump() && !resolve_instruction_rva(disassembly, basic_block->instruction_rva(i)))
 			{
@@ -258,9 +261,6 @@ bool binwrite::scan_function_for_rewrite_conflicts(
 				{
 					return true;
 				}
-
-				has_jump_table = true;
-				break;
 			}
 
 			for (auto& visible_operand : disassembly.visible_operands())
@@ -283,9 +283,7 @@ bool binwrite::scan_function_for_rewrite_conflicts(
 					!disassembly.writes_stack_pointer() &&
 					mem.displacement >= prologue_stack_offset)
 				{
-					bool past_prologue = (basic_block != entry_block);
-
-					if (!past_prologue)
+					if (basic_block == entry_block && function.basic_blocks().size() > 1)
 					{
 						rva_t::value_type offset = 0;
 
@@ -294,12 +292,10 @@ bool binwrite::scan_function_for_rewrite_conflicts(
 							offset += basic_block->at(k).size();
 						}
 
-						past_prologue = (offset >= unwind_info->size_of_prolog);
-					}
-
-					if (past_prologue)
-					{
-						return true;
+						if (offset >= unwind_info->size_of_prolog)
+						{
+							return true;
+						}
 					}
 				}
 			}
@@ -330,6 +326,8 @@ void binwrite::reassemble_displacement_instruction(
 		{
 			pe.insert(rva_t{ basic_block->instruction_rva(instruction_index).value() }, nop->bytes());
 		}
+
+		instruction = compiled_instruction;
 	}
 	else
 	{
@@ -351,8 +349,6 @@ void binwrite::reassemble_displacement_instruction(
 
 		block_instructions.emplace_back(basic_block, compiled_instruction, instruction_index + previous_count);
 	}
-
-	instruction = compiled_instruction;
 }
 
 void binwrite::adjust_displacements_in_block(
@@ -414,7 +410,6 @@ void binwrite::collect_extra_stack_pointer_families(
 	for (const auto& instruction : basic_block->instructions())
 	{
 		const auto& disassembly = instruction.disassemble();
-
 		const auto visible_operands = disassembly.visible_operands();
 
 		if (disassembly.is_mov() && 2 <= visible_operands.size())
@@ -463,8 +458,15 @@ void binwrite::insert_exit_block_pops(
 	block_insertion_list_t& block_instructions,
 	const instruction_t& pop_instruction)
 {
-	for (const auto& exit_block : function->exit_blocks(pe))
+	const auto exits = function->exit_blocks(pe);
+
+	for (const auto& exit_block : exits)
 	{
+		if (!pe.jump_table_targets(exit_block->last_instruction_rva()).empty())
+		{
+			continue;
+		}
+
 		std::uint32_t previous_count = 0;
 
 		for (const auto& [block, instruction, index] : block_instructions)
@@ -475,8 +477,10 @@ void binwrite::insert_exit_block_pops(
 			}
 		}
 
-		block_instructions.emplace_back(exit_block, pop_instruction, exit_block->count() - 1 + previous_count);
-		block_instructions.emplace_back(exit_block, pop_instruction, exit_block->count() - 1 + previous_count);
+		const std::uint32_t pop_index = static_cast<std::uint32_t>(exit_block->count()) - 1 + previous_count;
+
+		block_instructions.emplace_back(exit_block, pop_instruction, pop_index);
+		block_instructions.emplace_back(exit_block, pop_instruction, pop_index);
 	}
 }
 
@@ -505,25 +509,15 @@ void binwrite::apply_deferred_insertions(
 	}
 
 	constexpr std::uint16_t alignment = 32;
-	pe.insert(rva_t{ insertion_rva.value() + size_added }, alignment - (size_added % alignment), true);
 
-	size_added = 0;
-	std::shared_ptr<rva_t> max_rva = {};
+	if (const auto pad = size_added % alignment; pad != 0)
+	{
+		pe.insert(rva_t{ insertion_rva.value() + size_added }, alignment - pad, true);
+	}
 
 	for (const auto& [rva, bytes] : unwind_code_insertions)
 	{
-		if (!max_rva || rva < max_rva)
-		{
-			max_rva = rva;
-		}
-
 		pe.insert(*rva, bytes, true);
-		size_added += static_cast<std::uint16_t>(bytes.size());
-	}
-
-	if (max_rva)
-	{
-		pe.insert(*max_rva, alignment - (size_added % alignment), true);
 	}
 
 	for (const auto& [basic_block, instruction, index] : block_instructions)
@@ -540,6 +534,8 @@ void binwrite::adjust_catch_handler_displacements(
 	block_insertion_list_t& block_instructions,
 	std::vector<rva_t>& processed_catch_functions)
 {
+	std::vector frame_families = { binwrite::register_family_t::dx };
+
 	for (const auto& catch_rva : catch_rvas)
 	{
 		if (std::ranges::contains(processed_catch_functions, catch_rva))
@@ -556,14 +552,12 @@ void binwrite::adjust_catch_handler_displacements(
 
 		processed_catch_functions.push_back(catch_rva);
 
-		std::vector<register_family_t> frame_families = { };
-
 		for (const auto& basic_block : catch_function->basic_blocks())
 		{
-			collect_extra_stack_pointer_families(basic_block, frame_families, register_family_t::sp);
+			collect_extra_stack_pointer_families(basic_block, frame_families, register_family_t::dx);
 
 			adjust_displacements_in_block(pe, basic_block, current_stack_offset, block_instructions,
-				register_family_t::sp, false, frame_families);
+				register_family_t::none, true, frame_families);
 		}
 	}
 }
@@ -612,11 +606,6 @@ void binwrite::split_fh_prologues(portable_executable_t& pe, const exception_con
 			const auto new_block = pe.split_basic_block(*basic_block, split_index);
 
 			basic_block->set_skip(true);
-
-			if (const auto function = pe.find_function(*prologue.begin))
-			{
-				function->add_basic_block(new_block);
-			}
 		}
 	}
 }
