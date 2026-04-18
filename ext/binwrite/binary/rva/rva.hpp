@@ -183,12 +183,12 @@ namespace binwrite
 		rva_t original_target_value_;
 	};
 
-	class pe_ip2state_entry_t : public rva_ref_t
+	class pe_fh4_encoded_entry_t : public rva_ref_t
 	{
 	public:
 		using size_type = std::uint8_t;
 
-		pe_ip2state_entry_t(std::shared_ptr<rva_t> chunk_rva, std::shared_ptr<rva_t> previous_entry_target, const size_type encoded_size, std::shared_ptr<rva_t> target, const rva_t self)
+		pe_fh4_encoded_entry_t(std::shared_ptr<rva_t> chunk_rva, std::shared_ptr<rva_t> previous_entry_target, const size_type encoded_size, std::shared_ptr<rva_t> target, const rva_t self)
 				:	rva_ref_t(std::move(target), self),
 					chunk_rva_(std::move(chunk_rva)),
 					previous_entry_target_(std::move(previous_entry_target)),

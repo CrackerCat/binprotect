@@ -345,8 +345,8 @@ static void apply_frame_pointer_unwind_info(binwrite::portable_executable_t& pe,
 				continue;
 			}
 
-			const std::uint32_t codes_end_offset = codes_end - reinterpret_cast<const std::uint8_t*>(unwind_info);
-			const std::uint32_t codes_start_offset = codes_start - reinterpret_cast<const std::uint8_t*>(unwind_info);
+			const std::uint32_t codes_end_offset = static_cast<std::uint32_t>(codes_end - reinterpret_cast<const std::uint8_t*>(unwind_info));
+			const std::uint32_t codes_start_offset = static_cast<std::uint32_t>(codes_start - reinterpret_cast<const std::uint8_t*>(unwind_info));
 
 			copied_unwind_info.insert_range(copied_unwind_info.begin() + codes_end_offset, end_bytes);
 			copied_unwind_info.insert_range(copied_unwind_info.begin() + codes_start_offset, start_bytes);

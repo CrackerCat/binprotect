@@ -91,6 +91,8 @@ bool binwrite::code_rva_ref_t::update_rva_in_assembler_instruction(assembler_ins
 	const rva_t::value_type rip = self_.value() + size_;
 	const auto difference = static_cast<std::int64_t>(target_->value()) - static_cast<std::int64_t>(rip);
 
+	bool updated = false;
+
 	for (auto& operand : instruction.operands())
 	{
 		if (operand.is_imm() && (instruction.is_call() || instruction.is_jump()))
@@ -98,6 +100,8 @@ bool binwrite::code_rva_ref_t::update_rva_in_assembler_instruction(assembler_ins
 			const encoder_operand_t::imm_t imm = { .s = difference };
 
 			operand.set_imm(imm);
+
+			updated = true;
 		}
 		else if (operand.is_mem())
 		{
@@ -106,11 +110,13 @@ bool binwrite::code_rva_ref_t::update_rva_in_assembler_instruction(assembler_ins
 				mem.displacement = difference;
 
 				operand.set_mem(mem);
+
+				updated = true;
 			}
 		}
 	}
 
-	return true;
+	return updated;
 }
 
 std::expected<void, binwrite::rva_ref_t::error_t> binwrite::code_rva_ref_t::compile_and_patch(binary_t& binary, const assembler_instruction_t& instruction)
@@ -206,7 +212,7 @@ std::expected<void, binwrite::rva_ref_t::error_t> binwrite::pe_dir64_reloc_t::up
 	return { };
 }
 
-std::expected<void, binwrite::rva_ref_t::error_t> binwrite::pe_ip2state_entry_t::update_reference(binary_t& binary)
+std::expected<void, binwrite::rva_ref_t::error_t> binwrite::pe_fh4_encoded_entry_t::update_reference(binary_t& binary)
 {
 	const rva_t::value_type target_rva = target_->value();
 	const rva_t::value_type previous_rva = previous_entry_target_->value(); // if this is the first entry, the function rva is used
