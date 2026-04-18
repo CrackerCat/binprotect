@@ -29,25 +29,6 @@ static void process_unwind_info(binary_t& binary, const rva_t function_rva, cons
 	binary.create_function(function_rva);
 }
 
-static bool language_data_overlaps_unwind_info(const portable_executable_t& pe,
-	const void* const language_data, const std::uint32_t size,
-	const std::set<rva_t>& unwind_info_rvas)
-{
-	const rva_t begin{ static_cast<rva_t::value_type>(
-		static_cast<const std::uint8_t*>(language_data) - pe.data()) };
-	const rva_t end{ begin.value() + size };
-
-	for (const auto& unwind_rva : unwind_info_rvas)
-	{
-		if (begin <= unwind_rva && unwind_rva < end)
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 static void register_func_info_handler(portable_executable_t& pe,
 	const std::int32_t* const rva_field, const std::uint32_t rva_value,
 	std::vector<rva_t>& vec)
@@ -83,13 +64,6 @@ static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* 
 	const auto scope_table = reinterpret_cast<const c_scope_table_t*>(language_data);
 
 	if (!scope_table->entry_count || 0x1000 <= scope_table->entry_count)
-	{
-		return false;
-	}
-
-	const std::uint32_t table_size = scope_table->entry_count * sizeof(c_scope_table_t);
-
-	if (language_data_overlaps_unwind_info(pe, language_data, table_size, unwind_info_rvas))
 	{
 		return false;
 	}
@@ -299,11 +273,6 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 		return false;
 	}
 
-	if (language_data_overlaps_unwind_info(pe, language_data, sizeof(std::uint32_t), unwind_info_rvas))
-	{
-		return false;
-	}
-
 	const auto data = pe.data() + *data_rva;
 
 	pe.add_data_rva_ref(data_rva);
@@ -364,11 +333,6 @@ static bool parse_cxx_funcinfo3(portable_executable_t& pe,
 	const auto* const func_info = reinterpret_cast<const cfh3::func_info_t*>(pe.data() + data_rva);
 
 	if (!cfh3::is_fh3_magic(func_info->magic_and_bbt))
-	{
-		return false;
-	}
-
-	if (language_data_overlaps_unwind_info(pe, language_data, sizeof(std::uint32_t), unwind_info_rvas))
 	{
 		return false;
 	}

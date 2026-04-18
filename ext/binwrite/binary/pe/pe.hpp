@@ -57,9 +57,18 @@ namespace binwrite
 		                          const std::shared_ptr<rva_t>& unwind_insertion_rva);
 
 	protected:
+		struct runtime_function_t
+		{
+			std::shared_ptr<rva_t> begin;
+			std::shared_ptr<rva_t> end;
+		};
+
+		std::vector<runtime_function_t> runtime_functions_;
+
 		void find_sections() override;
 		void update_section_headers() override;
 		void update_relocations() override;
+		bool is_definitely_in_code_range(rva_t rva) const override;
 
 		rva_t::value_type process_section_alignment(const std::shared_ptr<section_t>& info, std::uint32_t section_alignment);
 
@@ -79,6 +88,7 @@ namespace binwrite
 		                                   std::uint16_t depth = 0);
 		void add_export_rvas(const portable_executable::nt_headers_t* nt_headers);
 		void add_relocation_rvas(const portable_executable::nt_headers_t* nt_headers);
+		void add_exception_rvas(const portable_executable::nt_headers_t* nt_headers);
 
 		template <class T>
 		std::shared_ptr<data_rva_ref_t> add_relocation_ref(const T* const value)

@@ -18,6 +18,12 @@ namespace binwrite
 	class relocation_t;
 	class section_t;
 
+	struct pending_disasm_t
+	{
+		std::shared_ptr<rva_t> rva;
+		bool risky;
+	};
+
 	class binary_t
 	{
 	public:
@@ -99,7 +105,7 @@ namespace binwrite
 		void add_jump_table_target(rva_t dispatcher_rva, const std::shared_ptr<rva_t>& target);
 
 		[[nodiscard]] bool is_inside_disassembly_queue(rva_t rva) const;
-		void add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva);
+		void add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva, bool risky = false);
 
 		void reindex_basic_blocks() const;
 		void reindex_functions() const;
@@ -130,11 +136,14 @@ namespace binwrite
 		virtual void find_sections() = 0;
 		virtual void update_section_headers() = 0;
 		virtual void update_relocations() = 0;
+		virtual bool is_definitely_in_code_range(rva_t rva) const = 0;
 
 		void process_instruction_rip_relativity(const disassembled_instruction_t& disassembled_instruction,
-		                                        rva_t instruction_rva, rva_t next_instruction_rva);
+		                                        rva_t instruction_rva, rva_t next_instruction_rva,
+			                                    std::vector<std::shared_ptr<rva_t>>& risky_references);
 
-		void collect_basic_block_instructions(const disassembler_t& disassembler, basic_block_t& basic_block);
+		bool collect_basic_block_instructions(const disassembler_t& disassembler, basic_block_t& basic_block,
+		                                      bool is_risky, std::vector<std::shared_ptr<rva_t>>& risky_references);
 
 		bool process_multi_level_jump_table(const basic_block_t& basic_block, rva_t entry_table_base,
 		                                    basic_block_t::size_type mov_index);
@@ -166,7 +175,7 @@ namespace binwrite
 
 		std::vector<std::shared_ptr<basic_block_t>> basic_blocks_;
 		std::unordered_map<rva_t::value_type, std::vector<std::shared_ptr<rva_t>>> jump_table_targets_;
-		std::deque<std::shared_ptr<rva_t>> disassembly_queue_;
+		std::deque<pending_disasm_t> disassembly_queue_;
 		std::unordered_set<rva_t::value_type> disassembly_queue_set_;
 
 		std::vector<std::shared_ptr<function_t>> functions_;

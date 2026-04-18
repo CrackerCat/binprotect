@@ -458,5 +458,8 @@
     <ClInclude Include="ext\raw_pdb\PDB_Util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ext\binwrite\binary\pe\cxx_frame_handler3.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -166,3 +166,18 @@ void binwrite::portable_executable_t::update_relocations()
 
 	image()->nt_headers()->optional_header.data_directories.basereloc_directory.size = static_cast<std::uint32_t>(new_directory.size());
 }
+
+bool binwrite::portable_executable_t::is_definitely_in_code_range(const rva_t rva) const
+{
+	if (find_function(rva))
+	{
+		return true;
+	}
+
+	return std::ranges::any_of(runtime_functions_,
+		[rva](const runtime_function_t& runtime_function)
+		{
+			return *runtime_function.begin <= rva && rva < *runtime_function.end;
+		}
+	);
+}

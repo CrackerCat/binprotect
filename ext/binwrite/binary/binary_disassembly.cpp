@@ -145,13 +145,16 @@ void binwrite::binary_t::assign_basic_block_to_function(const std::shared_ptr<fu
 }
 
 void binwrite::binary_t::process_instruction_rip_relativity(const disassembled_instruction_t& disassembled_instruction,
-                                                            const rva_t instruction_rva, const rva_t next_instruction_rva)
+                                                            const rva_t instruction_rva, const rva_t next_instruction_rva,
+	                                                        std::vector<std::shared_ptr<rva_t>>& risky_references)
 {
 	if (const auto raw_target_rva = resolve_instruction_rva(disassembled_instruction, instruction_rva))
 	{
 		const auto target_rva = add_rva(*raw_target_rva);
 
 		add_rva_ref(std::make_shared<code_rva_ref_t>(target_rva, rva_t{ instruction_rva }, disassembled_instruction.size()));
+
+		const bool is_risky_reference = disassembled_instruction.is_lea();
 
 		if (disassembled_instruction.is_control_flow() && is_in_code_section(*target_rva))
 		{
@@ -164,24 +167,30 @@ void binwrite::binary_t::process_instruction_rip_relativity(const disassembled_i
 
 			add_to_disassembly_queue(target_rva);
 		}
+		else if (is_risky_reference && is_in_code_section(*target_rva) && is_definitely_in_code_range(*target_rva))
+		{
+			risky_references.push_back(target_rva);
+		}
 	}
 }
 
-void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& disassembler, basic_block_t& basic_block)
+bool binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& disassembler,
+                                                          basic_block_t& basic_block, const bool is_risky,
+                                                          std::vector<std::shared_ptr<rva_t>>& risky_references)
 {
 	rva_t instruction_rva = *basic_block.rva();
 
-	std::optional<disassembled_instruction_t> previous_instruction = std::nullopt;
-
 	while (true)
 	{
-		if (instruction_rva.value() + 16 <= buffer_.size())
+		constexpr std::size_t max_padding_count = 16;
+
+		if (instruction_rva.value() + max_padding_count <= buffer_.size())
 		{
 			const auto* p = buffer_.data() + instruction_rva.value();
 			bool all_zero = true;
 			bool all_cc = true;
 
-			for (std::uint32_t k = 0; k < 16; k++)
+			for (std::uint32_t k = 0; k < max_padding_count; k++)
 			{
 				if (p[k] != 0x00) all_zero = false;
 				if (p[k] != 0xCC) all_cc = false;
@@ -198,6 +207,11 @@ void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 
 		if (!disassembled_instruction)
 		{
+			if (is_risky)
+			{
+				return false;
+			}
+
 			break;
 		}
 
@@ -214,23 +228,20 @@ void binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 
 		const instruction_t::const_value_type instruction_bytes(instruction_address, disassembled_instruction->size());
 
-		process_instruction_rip_relativity(*disassembled_instruction, instruction_rva, next_instruction_rva);
+		process_instruction_rip_relativity(*disassembled_instruction, instruction_rva, next_instruction_rva, risky_references);
 
 		basic_block.push(*this, instruction_t{ instruction_bytes, *disassembled_instruction }, true);
 
-		if (previous_instruction && previous_instruction->is_call() && disassembled_instruction->is_int())
-		{
-			break;
-		}
-
-		if (disassembled_instruction->is_jump() || disassembled_instruction->is_ret())
+		if (disassembled_instruction->is_jump() || disassembled_instruction->is_ret() ||
+			disassembled_instruction->is_int())
 		{
 			break;
 		}
 
 		instruction_rva = next_instruction_rva;
-		previous_instruction = *disassembled_instruction;
 	}
+
+	return true;
 }
 
 void binwrite::binary_t::process_disassembly_queue()
@@ -242,16 +253,31 @@ void binwrite::binary_t::process_disassembly_queue()
 
 	while (!disassembly_queue_.empty())
 	{
-		const auto block_rva = disassembly_queue_.front();
+		const auto entry = disassembly_queue_.front();
 		disassembly_queue_.pop_front();
 
-		basic_block_t basic_block(block_rva);
+		basic_block_t basic_block(entry.rva);
 
-		collect_basic_block_instructions(disassembler, basic_block);
+		std::vector<std::shared_ptr<rva_t>> risky_references = { };
+
+		if (!collect_basic_block_instructions(disassembler, basic_block, entry.risky, risky_references))
+		{
+			continue;
+		}
 
 		if (basic_block.count())
 		{
 			find_jump_tables(basic_block);
+
+			for (const auto& risky_rva : risky_references)
+			{
+				if (find_rva_ref(*risky_rva))
+				{
+					continue;
+				}
+
+				add_to_disassembly_queue(risky_rva, true);
+			}
 
 			auto shared_block = std::make_shared<basic_block_t>(std::move(basic_block));
 
@@ -275,7 +301,7 @@ bool binwrite::binary_t::is_inside_disassembly_queue(const rva_t rva) const
 	return disassembly_queue_set_.contains(rva.value());
 }
 
-void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva)
+void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& rva, const bool risky)
 {
 	if (!is_in_code_section(*rva))
 	{
@@ -284,7 +310,7 @@ void binwrite::binary_t::add_to_disassembly_queue(const std::shared_ptr<rva_t>& 
 
 	if (!disassembly_queue_set_.contains(rva->value()) && !find_basic_block(*rva))
 	{
-		disassembly_queue_.push_back(rva);
+		disassembly_queue_.emplace_back(rva, risky);
 		disassembly_queue_set_.insert(rva->value());
 	}
 }

@@ -204,32 +204,32 @@ bool binwrite::disassembled_instruction_t::is_control_flow() const
 
 bool binwrite::disassembled_instruction_t::is_jump() const
 {
-	return ZYDIS_MNEMONIC_JB <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_JZ;
+	return is_conditional_jump() || is_unconditional_jump();
 }
 
 bool binwrite::disassembled_instruction_t::is_conditional_jump() const
 {
-	return is_jump() && decoded_instruction_.mnemonic != ZYDIS_MNEMONIC_JMP;
+	return decoded_instruction_.meta.category == ZYDIS_CATEGORY_COND_BR;
 }
 
 bool binwrite::disassembled_instruction_t::is_unconditional_jump() const
 {
-	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_JMP;
+	return decoded_instruction_.meta.category == ZYDIS_CATEGORY_UNCOND_BR;
 }
 
 bool binwrite::disassembled_instruction_t::is_call() const
 {
-	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_CALL;
+	return decoded_instruction_.meta.category == ZYDIS_CATEGORY_CALL;
 }
 
 bool binwrite::disassembled_instruction_t::is_int() const
 {
-	return ZYDIS_MNEMONIC_INT <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_INTO;
+	return decoded_instruction_.meta.category == ZYDIS_CATEGORY_INTERRUPT;
 }
 
 bool binwrite::disassembled_instruction_t::is_ret() const
 {
-	return decoded_instruction_.mnemonic == ZYDIS_MNEMONIC_RET;
+	return decoded_instruction_.meta.category == ZYDIS_CATEGORY_RET;
 }
 
 bool binwrite::disassembled_instruction_t::is_mov() const

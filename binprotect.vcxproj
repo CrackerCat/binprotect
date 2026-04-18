@@ -214,6 +214,7 @@
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp" />
     <ClInclude Include="ext\binwrite\binary\binary.hpp" />
+    <ClInclude Include="ext\binwrite\binary\pe\cxx_frame_handler3.hpp" />
     <ClInclude Include="ext\binwrite\binary\pe\pe.hpp" />
     <ClInclude Include="ext\binwrite\binary\pe\pe_exceptions.hpp" />
     <ClInclude Include="ext\binwrite\binary\pe\cxx_frame_handler4.hpp" />

@@ -44,11 +44,6 @@ bool binwrite::symbols::map::parse(binary_t& binary, const std::filesystem::path
 			continue;
 		}
 
-		if (line.contains("Static symbols"))
-		{
-			break;
-		}
-
 		std::smatch regex_matches = { };
 
 		if (!std::regex_search(line, regex_matches, regex))
@@ -82,6 +77,7 @@ bool binwrite::symbols::map::parse(binary_t& binary, const std::filesystem::path
 		const auto function_name = regex_matches[3].str();
 
 		if (function_name.empty() || function_name[0] == '.' ||
+			function_name[0] == '$' ||
 			function_name.contains("__IMPORT_DESCRIPTOR_") ||
 			function_name == "__NULL_IMPORT_DESCRIPTOR" ||
 			function_name.starts_with("??_C@_"))

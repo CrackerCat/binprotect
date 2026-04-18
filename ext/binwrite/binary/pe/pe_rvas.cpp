@@ -38,10 +38,10 @@ void binwrite::portable_executable_t::add_load_config_rvas(const portable_execut
 	}
 
 	add_load_config_table_rvas(load_config->guard_cf_function_table);
-	/*add_load_config_table_rvas(load_config->se_handler_table);
+	add_load_config_table_rvas(load_config->se_handler_table);
 	add_load_config_table_rvas(load_config->guard_address_taken_iat_entry_table);
 	add_load_config_table_rvas(load_config->guard_long_jump_target_table);
-	add_load_config_table_rvas(load_config->guard_eh_continuation_table);*/
+	add_load_config_table_rvas(load_config->guard_eh_continuation_table);
 }
 
 void binwrite::portable_executable_t::add_misc_rvas(const portable_executable::nt_headers_t* const nt_headers)
@@ -287,6 +287,30 @@ void binwrite::portable_executable_t::add_relocation_rvas(const portable_executa
 	}
 }
 
+void binwrite::portable_executable_t::add_exception_rvas(const portable_executable::nt_headers_t* nt_headers)
+{
+	const auto data_directory = nt_headers->optional_header.data_directories.exception_directory;
+
+	if (!data_directory.present())
+	{
+		return;
+	}
+
+	const std::uint32_t count = data_directory.size / sizeof(portable_executable::runtime_function_t);
+	const auto* runtime_function = reinterpret_cast<const portable_executable::runtime_function_t*>(data() + data_directory.virtual_address);
+
+	for (std::uint32_t i = 0; i < count; i++, runtime_function++)
+	{
+		if (runtime_function->begin_address < runtime_function->end_address)
+		{
+			runtime_functions_.push_back({
+				.begin = add_rva(runtime_function->begin_address),
+				.end = add_rva(runtime_function->end_address)
+			});
+		}
+	}
+}
+
 void binwrite::portable_executable_t::find_data_rvas()
 {
 	const auto img = image();
@@ -300,6 +324,7 @@ void binwrite::portable_executable_t::find_data_rvas()
 	add_export_rvas(nt_headers);
 	add_relocation_rvas(nt_headers);
 	add_resource_rvas(nt_headers);
+	add_exception_rvas(nt_headers);
 
 	add_misc_rvas(nt_headers);
 }

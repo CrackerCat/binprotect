@@ -219,6 +219,9 @@ static std::vector<binwrite::instruction_t> substitute_single_instruction(binwri
 		}
 	}
 
+	instructions.insert(instructions.begin(), sub_instruction(binwrite::register_t::rsp, encode_unsigned_imm_operand(8)).value());
+	instructions.push_back(add_instruction(binwrite::register_t::rsp, encode_unsigned_imm_operand(8)).value());
+
 	return instructions;
 }
 
