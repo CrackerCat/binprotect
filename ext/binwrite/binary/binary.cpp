@@ -311,7 +311,7 @@ std::shared_ptr<binwrite::section_t> binwrite::binary_t::data_section() const
 
 	for (const auto& section : sections_ | std::views::values)
 	{
-		if (!section->code() && (!result || section->rva() < result->rva()))
+		if (section->data() && (!result || section->rva() < result->rva()))
 		{
 			result = section;
 		}
@@ -322,6 +322,11 @@ std::shared_ptr<binwrite::section_t> binwrite::binary_t::data_section() const
 
 bool binwrite::binary_t::is_in_code_section(const rva_t rva) const
 {
+	if (!is_rva_valid(rva))
+	{
+		return false;
+	}
+
 	for (const auto& section : sections_ | std::views::values)
 	{
 		if (section->code() && section->contains(rva))
@@ -333,6 +338,23 @@ bool binwrite::binary_t::is_in_code_section(const rva_t rva) const
 	return false;
 }
 
+bool binwrite::binary_t::is_in_data_section(const rva_t rva) const
+{
+	if (!is_rva_valid(rva))
+	{
+		return false;
+	}
+
+	for (const auto& section : sections_ | std::views::values)
+	{
+		if (section->data() && section->contains(rva))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
 
 std::vector<std::uint8_t>& binwrite::binary_t::buffer()
 {
@@ -342,6 +364,11 @@ std::vector<std::uint8_t>& binwrite::binary_t::buffer()
 const std::vector<std::uint8_t>& binwrite::binary_t::buffer() const
 {
 	return buffer_;
+}
+
+std::size_t binwrite::binary_t::size() const
+{
+	return buffer_.size();
 }
 
 std::uint8_t* binwrite::binary_t::data()

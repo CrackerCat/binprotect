@@ -139,6 +139,16 @@ void binwrite::binary_t::add_rva_ref(std::shared_ptr<rva_ref_t> ref)
 	rva_refs_.push_back(std::move(ref));
 }
 
+bool binwrite::binary_t::is_rva_valid(const rva_t rva) const
+{
+	return rva.value() < size();
+}
+
+bool binwrite::binary_t::is_rva_valid(const rva_t::value_type rva) const
+{
+	return is_rva_valid(rva_t{ rva });
+}
+
 void binwrite::binary_t::redirect_rva_ref(const rva_t self, const rva_t new_target)
 {
 	const auto added_rva = add_rva(new_target);

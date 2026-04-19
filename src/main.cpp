@@ -133,7 +133,6 @@ static void obfuscate_exceptions_pe_binary(binwrite::portable_executable_t& pe)
 	pe.disassemble();
 
 	binwrite::split_fh_prologues(pe, exceptions_context);
-	binwrite::process_throw_info(pe);
 	binwrite::rewrite_frame_pointers(pe, exceptions_context);
 
 	const auto is_block_fixed = [&exceptions_context](const binwrite::rva_t::value_type rva) -> bool
@@ -221,6 +220,9 @@ std::int32_t main()
 
 		exceptions_support = false;
 	}
+
+	const auto rtti_result = binwrite::parse_rtti(pe);
+	binwrite::parse_throw_info(pe, rtti_result);
 
 	if (exceptions_support)
 	{

@@ -1,5 +1,6 @@
 #pragma once
 #include "pe.hpp"
+#include "pe_rtti.hpp"
 
 #include <algorithm>
 #include <unordered_set>
@@ -59,7 +60,7 @@ namespace binwrite
 	};
 
 	exception_context_t parse_exception_directory(portable_executable_t& pe);
-	void process_throw_info(portable_executable_t& pe);
+	void parse_throw_info(portable_executable_t& pe, const rtti_info_t& rtti_result);
 	void rewrite_frame_pointers(portable_executable_t& pe, exception_context_t& context);
 	void split_fh_prologues(portable_executable_t& pe, const exception_context_t& context);
 }

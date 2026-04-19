@@ -126,9 +126,6 @@
     <ClCompile Include="ext\binwrite\binary\pe\pe_frame_pointer_scan.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="ext\binwrite\binary\pe\pe_throw_info.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="ext\binwrite\binary\pe\pe_runtime_function.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -199,6 +196,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ext\raw_pdb\PDB_Types.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_rtti.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\binwrite\binary\pe\pe_throw_info.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -459,6 +462,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\binwrite\binary\pe\cxx_frame_handler3.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\binwrite\binary\pe\pe_rtti.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -29,6 +29,7 @@ namespace binwrite
 
 		[[nodiscard]] bool contains(rva_t rva) const;
 		[[nodiscard]] bool code() const;
+		[[nodiscard]] bool data() const;
 
 		[[nodiscard]] size_type size() const;
 		void set_size(size_type size);

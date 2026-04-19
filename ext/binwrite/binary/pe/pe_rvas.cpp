@@ -272,7 +272,9 @@ void binwrite::portable_executable_t::add_relocation_rvas(const portable_executa
 
 				if (is_in_code_section(*target_rva))
 				{
-					add_to_disassembly_queue(target_rva);
+					const bool risky = !static_cast<bool>(find_function(*target_rva)) || is_inside_runtime_function(*target_rva);
+
+					add_to_disassembly_queue(target_rva, risky);
 				}
 
 				add_rva_ref(std::make_shared<pe_dir64_reloc_t>(target_rva, *rva));
@@ -322,9 +324,9 @@ void binwrite::portable_executable_t::find_data_rvas()
 	add_delay_import_rvas(nt_headers);
 	add_debug_rvas(nt_headers);
 	add_export_rvas(nt_headers);
-	add_relocation_rvas(nt_headers);
 	add_resource_rvas(nt_headers);
 	add_exception_rvas(nt_headers);
+	add_relocation_rvas(nt_headers);
 
 	add_misc_rvas(nt_headers);
 }

@@ -86,3 +86,8 @@ bool binwrite::section_t::code() const
 {
 	return code_;
 }
+
+bool binwrite::section_t::data() const
+{
+	return !code_;
+}

@@ -83,9 +83,12 @@ namespace binwrite
 		[[nodiscard]] std::shared_ptr<section_t> data_section() const;
 
 		[[nodiscard]] bool is_in_code_section(rva_t rva) const;
+		[[nodiscard]] bool is_in_data_section(rva_t rva) const;
 
 		[[nodiscard]] std::vector<std::uint8_t>& buffer();
 		[[nodiscard]] const std::vector<std::uint8_t>& buffer() const;
+
+		[[nodiscard]] std::size_t size() const;
 
 		[[nodiscard]] std::uint8_t* data();
 		[[nodiscard]] const std::uint8_t* data() const;
@@ -99,6 +102,9 @@ namespace binwrite
 
 		std::shared_ptr<rva_t> add_rva(rva_t::value_type value, bool force_inclusive = false);
 		std::shared_ptr<rva_t> add_rva(rva_t rva, bool force_inclusive = false);
+
+		[[nodiscard]] bool is_rva_valid(rva_t rva) const;
+		[[nodiscard]] bool is_rva_valid(rva_t::value_type rva) const;
 
 		void add_rva_ref(std::shared_ptr<rva_ref_t> ref);
 		void redirect_rva_ref(rva_t self, rva_t new_target);

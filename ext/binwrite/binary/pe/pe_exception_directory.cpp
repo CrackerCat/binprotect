@@ -56,11 +56,6 @@ static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* 
 	std::vector<exception_context_t::function_range_t>& protected_code_ranges,
 	std::vector<rva_t>& func_handlers)
 {
-	const auto is_entry_valid = [&pe](const std::int64_t entry_offset) -> bool
-		{
-			return entry_offset < static_cast<std::int64_t>(pe.buffer().size());
-		};
-
 	const auto scope_table = reinterpret_cast<const c_scope_table_t*>(language_data);
 
 	if (!scope_table->entry_count || 0x1000 <= scope_table->entry_count)
@@ -72,10 +67,10 @@ static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* 
 	{
 		const auto table_entry = &scope_table->table[i];
 
-		if (!is_entry_valid(table_entry->begin_rva) ||
-			!is_entry_valid(table_entry->end_rva) ||
-			!is_entry_valid(table_entry->handler_rva) ||
-			!is_entry_valid(table_entry->target_rva))
+		if (!pe.is_rva_valid(table_entry->begin_rva) ||
+			!pe.is_rva_valid(table_entry->end_rva) ||
+			!pe.is_rva_valid(table_entry->handler_rva) ||
+			!pe.is_rva_valid(table_entry->target_rva))
 		{
 			return false;
 		}
@@ -281,7 +276,7 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 	const std::uint64_t image_base = reinterpret_cast<std::uint64_t>(pe.data());
 	const std::int32_t function_start = static_cast<std::int32_t>(runtime_function->begin_address);
 
-	const auto header_size = cfh4::decompress_func_info(data, func_info, image_base, static_cast<std::int32_t>(pe.buffer().size()), function_start);
+	const auto header_size = cfh4::decompress_func_info(data, func_info, image_base, static_cast<std::int32_t>(pe.size()), function_start);
 
 	if (header_size == -1)
 	{

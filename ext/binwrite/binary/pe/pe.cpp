@@ -68,6 +68,16 @@ bool binwrite::portable_executable_t::has_exceptions_directory() const
 	return data_directories.exception_directory.present();
 }
 
+bool binwrite::portable_executable_t::is_inside_runtime_function(rva_t rva) const
+{
+	return std::ranges::any_of(runtime_functions_,
+		[rva](const runtime_function_t& runtime_function)
+		{
+			return *runtime_function.begin <= rva && rva < *runtime_function.end;
+		}
+	);
+}
+
 static reloc_pages_t collect_reloc_pages(const std::span<const std::shared_ptr<binwrite::relocation_t>> relocations)
 {
 	reloc_pages_t reloc_pages;
@@ -174,10 +184,5 @@ bool binwrite::portable_executable_t::is_definitely_in_code_range(const rva_t rv
 		return true;
 	}
 
-	return std::ranges::any_of(runtime_functions_,
-		[rva](const runtime_function_t& runtime_function)
-		{
-			return *runtime_function.begin <= rva && rva < *runtime_function.end;
-		}
-	);
+	return is_inside_runtime_function(rva);
 }

@@ -1,14 +1,13 @@
 #include "pe_exceptions.hpp"
-#include "../../disassembler/disassembler.hpp"
-
+#include <ranges>
 #include <spdlog/spdlog.h>
 
-struct msvc_throw_info_t
+struct throw_info_t
 {
 	std::uint32_t attributes;
-	std::int32_t pmfn_unwind;
-	std::int32_t forward_compat;
-	std::int32_t catchable_type_array;
+	std::uint32_t pmfn_unwind;
+	std::uint32_t forward_compat;
+	std::uint32_t catchable_type_array;
 };
 
 struct catchable_type_array_t
@@ -28,110 +27,101 @@ struct catchable_type_t
 	std::uint32_t optional_copy_constructor_rva;
 };
 
-static void register_throw_info_refs(binwrite::portable_executable_t& pe,
-                                     const binwrite::rva_t::value_type throw_info_rva)
+void binwrite::parse_throw_info(portable_executable_t& pe, const rtti_info_t& rtti_result)
 {
-	const auto throw_info = reinterpret_cast<const msvc_throw_info_t*>(pe.data() + throw_info_rva);
+	std::uint32_t ti = 0;
+	std::uint32_t cta = 0;
+	std::uint32_t ct = 0;
 
-	if (throw_info->pmfn_unwind)
+	for (const auto& section : std::views::values(pe.sections()))
 	{
-		pe.add_data_rva_ref(&throw_info->pmfn_unwind);
-	}
-
-	if (throw_info->forward_compat)
-	{
-		pe.add_data_rva_ref(&throw_info->forward_compat);
-	}
-
-	if (!throw_info->catchable_type_array)
-	{
-		return;
-	}
-
-	pe.add_data_rva_ref(&throw_info->catchable_type_array);
-
-	const auto array = reinterpret_cast<const catchable_type_array_t*>(
-		pe.data() + throw_info->catchable_type_array);
-
-	for (std::uint32_t j = 0; j < array->count; j++)
-	{
-		const auto type_rva = &array->type_rvas[j];
-
-		pe.add_data_rva_ref(type_rva);
-
-		const auto type = reinterpret_cast<const catchable_type_t*>(pe.data() + *type_rva);
-
-		if (type->rva_type)
-		{
-			pe.add_data_rva_ref(&type->rva_type);
-		}
-
-		if (type->optional_copy_constructor_rva)
-		{
-			pe.add_data_rva_ref(&type->optional_copy_constructor_rva);
-		}
-	}
-}
-
-void binwrite::process_throw_info(portable_executable_t& pe)
-{
-	std::shared_ptr<function_t> cxx_throw_exception;
-
-	for (const auto& function : pe.functions())
-	{
-		if (function->name().contains("CxxThrowException"))
-		{
-			cxx_throw_exception = function;
-			break;
-		}
-	}
-
-	if (!cxx_throw_exception)
-	{
-		return;
-	}
-
-	const auto& refs = pe.find_all_targetted_rva_refs(*cxx_throw_exception->rva());
-
-	for (const auto& ref : refs)
-	{
-		if (!ref->is_code_reference())
+		if (!section->data())
 		{
 			continue;
 		}
 
-		const auto& holding_block = pe.find_containing_basic_block(ref->self());
-		const auto instruction_index = holding_block->instruction_index(ref->self());
+		constexpr std::uint16_t step = sizeof(std::uint32_t);
+		constexpr std::uint16_t throw_info_size = sizeof(throw_info_t);
 
-		if (instruction_index == 0)
+		const rva_t end_rva{ section->end_rva().value() - throw_info_size };
+
+		for (rva_t rva = section->rva(); rva < end_rva; rva.set_value(rva.value() + step))
 		{
-			continue;
-		}
+			const auto throw_info = reinterpret_cast<const throw_info_t*>(pe.data() + rva.value());
 
-		const auto& call_instruction = holding_block->at(instruction_index);
+			const rva_t catchable_types_rva{ throw_info->catchable_type_array };
+			const rva_t pmfn_unwind_rva{ throw_info->pmfn_unwind };
+			const rva_t forward_compat_rva{ throw_info->forward_compat };
 
-		if (!call_instruction.disassemble().is_call())
-		{
-			continue;
-		}
-
-		for (std::int64_t i = instruction_index; i != 0; i--)
-		{
-			const auto& instruction = holding_block->at(i - 1);
-			const auto& disassembly = instruction.disassemble();
-
-			if (disassembly.writes_register_family(register_family_t::dx))
+			if (!throw_info->catchable_type_array || !pe.is_in_data_section(catchable_types_rva))
 			{
-				const auto instruction_rva = holding_block->instruction_rva(i - 1);
+				continue;
+			}
 
-				if (const auto throw_info_rva = resolve_instruction_rva(disassembly, instruction_rva);
-					throw_info_rva && disassembly.is_lea())
+			const auto catchable_types = reinterpret_cast<const catchable_type_array_t*>(pe.data() + catchable_types_rva.value());
+
+			if (!catchable_types->count || 0x1000 < catchable_types->count)
+			{
+				continue;
+			}
+
+			const std::uint32_t table_size = sizeof(catchable_type_array_t) + sizeof(std::uint32_t) * (catchable_types->count - 1);
+
+			if (!pe.is_rva_valid(catchable_types_rva.value() + table_size))
+			{
+				continue;
+			}
+
+			std::vector<const std::uint32_t*> pending_refs = { };
+
+			bool failed = false;
+
+			for (std::uint32_t i = 0; i < catchable_types->count; i++)
+			{
+				const std::uint32_t* const type_rva = &catchable_types->type_rvas[i];
+				const auto type = reinterpret_cast<const catchable_type_t*>(pe.data() + *type_rva);
+
+				if (!pe.is_rva_valid(*type_rva) || !rtti_result.type_descriptor_rvas.contains(type->rva_type))
 				{
-					register_throw_info_refs(pe, *throw_info_rva);
+					failed = true;
+
+					break;
 				}
 
-				break;
+				if (type->optional_copy_constructor_rva)
+				{
+					pending_refs.push_back(&type->optional_copy_constructor_rva);
+				}
+
+				pending_refs.push_back(&type->rva_type);
+				pending_refs.push_back(type_rva);
 			}
+
+			if (failed)
+			{
+				continue;
+			}
+
+			for (const auto ref : pending_refs)
+			{
+				pe.add_data_rva_ref(ref);
+			}
+
+			pe.add_data_rva_ref(&throw_info->catchable_type_array);
+
+			if (throw_info->pmfn_unwind && pe.is_rva_valid(pmfn_unwind_rva))
+			{
+				pe.add_data_rva_ref(&throw_info->pmfn_unwind);
+			}
+
+			if (throw_info->forward_compat && pe.is_rva_valid(forward_compat_rva))
+			{
+				pe.add_data_rva_ref(&throw_info->forward_compat);
+			}
+
+			cta++;
 		}
 	}
+
+	spdlog::info("ctas found {}", cta);
 }

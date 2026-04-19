@@ -51,9 +51,10 @@ namespace binwrite
 		[[nodiscard]] const portable_executable::image_t* image() const;
 
 		[[nodiscard]] bool has_exceptions_directory() const;
+		[[nodiscard]] bool is_inside_runtime_function(rva_t rva) const;
 
 		void add_runtime_function(const runtime_function_params_t& params,
-								  const std::shared_ptr<rva_t>& exception_directory_rva,
+		                          const std::shared_ptr<rva_t>& exception_directory_rva,
 		                          const std::shared_ptr<rva_t>& unwind_insertion_rva);
 
 	protected:
