@@ -233,7 +233,7 @@ bool binwrite::binary_t::collect_basic_block_instructions(const disassembler_t& 
 		basic_block.push(*this, instruction_t{ instruction_bytes, *disassembled_instruction }, true);
 
 		if (disassembled_instruction->is_jump() || disassembled_instruction->is_ret() ||
-			disassembled_instruction->is_int())
+			disassembled_instruction->is_int() || disassembled_instruction->is_ud())
 		{
 			break;
 		}
@@ -284,6 +284,33 @@ void binwrite::binary_t::process_disassembly_queue()
 			basic_blocks_.push_back(shared_block);
 			bb_index_[shared_block->rva()->value()] = shared_block;
 			bb_interval_index_[shared_block->rva()->value()] = shared_block;
+		}
+	}
+
+	split_basic_blocks_in_data();
+}
+
+void binwrite::binary_t::split_basic_blocks_in_data()
+{
+	for (const auto& rva_ref : rva_refs_)
+	{
+		const auto overlapping_block = find_containing_basic_block(rva_ref->self());
+
+		if (!overlapping_block)
+		{
+			continue;
+		}
+
+		const auto jump_table_entry = std::dynamic_pointer_cast<llvm_jmp_table_entry_t>(rva_ref);
+		const auto data_ref = std::dynamic_pointer_cast<data_rva_ref_t>(rva_ref);
+
+		if (jump_table_entry || data_ref)
+		{
+			const auto index = overlapping_block->instruction_index(rva_ref->self());
+
+			const auto split_block = split_basic_block(*overlapping_block, index);
+
+			unlink_basic_block(split_block);
 		}
 	}
 }

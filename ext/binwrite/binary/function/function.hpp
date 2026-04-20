@@ -17,6 +17,7 @@ namespace binwrite
 					rva_(std::move(rva)) { }
 
 		void add_basic_block(std::shared_ptr<basic_block_t> basic_block);
+		void unlink_basic_block(std::shared_ptr<basic_block_t> basic_block);
 
 		void set_basic_blocks_skip(bool state) const;
 		void set_basic_blocks_dirty(bool state);

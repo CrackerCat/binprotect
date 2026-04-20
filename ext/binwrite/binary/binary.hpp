@@ -35,7 +35,6 @@ namespace binwrite
 		void parse();
 
 		void disassemble();
-		void process_disassembly_queue();
 
 		void insert(rva_t rva, std::span<const std::uint8_t> data, bool inclusive = false);
 		void insert(rva_t rva, rva_t::size_type size, bool inclusive = false);
@@ -60,6 +59,7 @@ namespace binwrite
 
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva, std::span<const instruction_t> instructions);
 		std::shared_ptr<basic_block_t> create_basic_block(rva_t rva);
+		void unlink_basic_block(std::shared_ptr<basic_block_t> basic_block);
 
 		[[nodiscard]] std::span<std::shared_ptr<basic_block_t>> basic_blocks();
 		[[nodiscard]] std::span<const std::shared_ptr<basic_block_t>> basic_blocks() const;
@@ -144,9 +144,12 @@ namespace binwrite
 		virtual void update_relocations() = 0;
 		virtual bool is_definitely_in_code_range(rva_t rva) const = 0;
 
+		void process_disassembly_queue();
+		void split_basic_blocks_in_data();
+
 		void process_instruction_rip_relativity(const disassembled_instruction_t& disassembled_instruction,
 		                                        rva_t instruction_rva, rva_t next_instruction_rva,
-			                                    std::vector<std::shared_ptr<rva_t>>& risky_references);
+		                                        std::vector<std::shared_ptr<rva_t>>& risky_references);
 
 		bool collect_basic_block_instructions(const disassembler_t& disassembler, basic_block_t& basic_block,
 		                                      bool is_risky, std::vector<std::shared_ptr<rva_t>>& risky_references);

@@ -234,7 +234,5 @@ binwrite::rtti_info_t binwrite::parse_rtti(portable_executable_t& pe)
 		}
 	}
 
-	spdlog::info("type descriptors found: {}", type_descriptor_rvas.size());
-
 	return { type_descriptor_rvas };
 }

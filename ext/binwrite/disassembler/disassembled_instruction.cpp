@@ -232,6 +232,11 @@ bool binwrite::disassembled_instruction_t::is_ret() const
 	return decoded_instruction_.meta.category == ZYDIS_CATEGORY_RET;
 }
 
+bool binwrite::disassembled_instruction_t::is_ud() const
+{
+	return ZYDIS_MNEMONIC_UD0 <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_UD2;
+}
+
 bool binwrite::disassembled_instruction_t::is_mov() const
 {
 	return ZYDIS_MNEMONIC_MOV <= decoded_instruction_.mnemonic && decoded_instruction_.mnemonic <= ZYDIS_MNEMONIC_MOVZX;

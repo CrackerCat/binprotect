@@ -131,6 +131,21 @@ std::shared_ptr<binwrite::basic_block_t> binwrite::binary_t::create_basic_block(
 	return basic_block;
 }
 
+void binwrite::binary_t::unlink_basic_block(std::shared_ptr<basic_block_t> basic_block)
+{
+	if (!std::erase(basic_blocks_, basic_block))
+	{
+		return;
+	}
+
+	for (const auto& function : functions_)
+	{
+		function->unlink_basic_block(basic_block);
+	}
+
+	bb_index_dirty_ = true;
+}
+
 std::span<std::shared_ptr<binwrite::basic_block_t>> binwrite::binary_t::basic_blocks()
 {
 	return basic_blocks_;

@@ -7,6 +7,13 @@ void binwrite::function_t::add_basic_block(std::shared_ptr<basic_block_t> basic_
 	basic_blocks_.push_back(std::move(basic_block));
 }
 
+void binwrite::function_t::unlink_basic_block(std::shared_ptr<basic_block_t> basic_block)
+{
+	std::erase(basic_blocks_, basic_block);
+
+	bb_index_dirty_ = true;
+}
+
 void binwrite::function_t::set_basic_blocks_skip(const bool state) const
 {
 	for (const auto& basic_block : basic_blocks_)

@@ -29,10 +29,6 @@ struct catchable_type_t
 
 void binwrite::parse_throw_info(portable_executable_t& pe, const rtti_info_t& rtti_result)
 {
-	std::uint32_t ti = 0;
-	std::uint32_t cta = 0;
-	std::uint32_t ct = 0;
-
 	for (const auto& section : std::views::values(pe.sections()))
 	{
 		if (!section->data())
@@ -118,10 +114,6 @@ void binwrite::parse_throw_info(portable_executable_t& pe, const rtti_info_t& rt
 			{
 				pe.add_data_rva_ref(&throw_info->forward_compat);
 			}
-
-			cta++;
 		}
 	}
-
-	spdlog::info("ctas found {}", cta);
 }
