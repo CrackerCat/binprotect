@@ -1,6 +1,7 @@
 {
   "dependencies": [
     "zydis",
+    "argparse",
     "spdlog"
   ]
 }

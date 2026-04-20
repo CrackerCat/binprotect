@@ -204,6 +204,9 @@
     <ClCompile Include="ext\binwrite\binary\pe\pe_throw_info.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\config\config.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\binwrite\assembler\assembler.hpp">
@@ -465,6 +468,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ext\binwrite\binary\pe\pe_rtti.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\config\config.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
