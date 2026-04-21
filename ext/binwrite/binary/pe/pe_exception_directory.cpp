@@ -52,8 +52,8 @@ struct c_scope_table_t
 	c_scope_table_entry_t table[1];
 };
 
-static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* const language_data, const std::set<rva_t>& unwind_info_rvas,
-	std::vector<exception_context_t::function_range_t>& protected_code_ranges,
+static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* const language_data,
+	std::vector<exception_context_t::function_range_t>& seh_code_ranges,
 	std::vector<rva_t>& func_handlers)
 {
 	const auto scope_table = reinterpret_cast<const c_scope_table_t*>(language_data);
@@ -75,7 +75,7 @@ static bool parse_c_scope_table(portable_executable_t& pe, const std::uint32_t* 
 			return false;
 		}
 
-		protected_code_ranges.push_back({
+		seh_code_ranges.push_back({
 			.begin = pe.add_rva(table_entry->begin_rva),
 			.end = pe.add_rva(table_entry->end_rva)
 			});
@@ -177,7 +177,8 @@ static void parse_try_block_handlers(portable_executable_t& pe,
 	const std::int32_t function_start,
 	const std::uint32_t begin_address,
 	std::vector<rva_t>& func_handlers,
-	std::vector<rva_t>& catch_handlers)
+	std::vector<rva_t>& catch_handlers,
+	bool& catches_seh)
 {
 	cfh4::try_block_map4_t try_block_map(&func_info, image_base);
 
@@ -191,7 +192,15 @@ static void parse_try_block_handlers(portable_executable_t& pe,
 
 		for (auto handler_entry : handler_map)
 		{
-			pe.add_data_rva_ref(reinterpret_cast<std::int32_t*>(handler_entry.disp_type_ref.ptr));
+			if (handler_entry.disp_type)
+			{
+				pe.add_data_rva_ref(reinterpret_cast<std::int32_t*>(handler_entry.disp_type_ref.ptr));
+			}
+			else // catches SEH if type == 0
+			{
+				catches_seh = true;
+			}
+			
 			pe.add_data_rva_ref(reinterpret_cast<std::int32_t*>(handler_entry.disp_of_handler_ref.ptr));
 
 			const auto first_cont_ptr = handler_entry.disp_of_handler_ref.ptr + 4;
@@ -258,7 +267,7 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 	const std::uint32_t* const language_data,
 	std::vector<rva_t>& func_handlers,
 	std::vector<rva_t>& catch_handlers,
-	const std::set<rva_t>& unwind_info_rvas)
+	bool& catches_seh)
 {
 	const auto& buffer = pe.buffer();
 	const auto data_rva = language_data;
@@ -306,7 +315,8 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 	if (func_info.header.has_try_block_map)
 	{
 		parse_try_block_handlers(pe, func_info, image_base, function_start,
-			runtime_function->begin_address, func_handlers, catch_handlers);
+			runtime_function->begin_address, func_handlers, catch_handlers,
+			catches_seh);
 	}
 
 	return true;
@@ -315,7 +325,7 @@ static bool parse_cxx_funcinfo4(portable_executable_t& pe,
 static bool parse_cxx_funcinfo3(portable_executable_t& pe,
 	const std::uint32_t* const language_data,
 	std::vector<rva_t>& catch_handlers,
-	const std::set<rva_t>& unwind_info_rvas)
+	bool& catches_seh)
 {
 	const auto& buffer = pe.buffer();
 	const auto data_rva = *language_data;
@@ -416,7 +426,14 @@ static bool parse_cxx_funcinfo3(portable_executable_t& pe,
 				const auto* const handler = reinterpret_cast<const cfh3::handler_type_t*>(
 					pe.data() + handler_base + static_cast<std::int64_t>(j) * sizeof(cfh3::handler_type_t));
 
-				pe.add_data_rva_ref(&handler->disp_type);
+				if (handler->disp_type)
+				{
+					pe.add_data_rva_ref(&handler->disp_type);
+				}
+				else // catches SEH if type == 0
+				{
+					catches_seh = true;
+				}
 
 				if (handler->disp_of_handler)
 				{
@@ -465,18 +482,6 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 		const std::uint32_t count = data_directory.size / sizeof(portable_executable::runtime_function_t);
 		auto runtime_function = reinterpret_cast<const portable_executable::runtime_function_t*>(pe.data() + data_directory.virtual_address);
 
-		std::set<rva_t> unwind_info_rvas = { };
-
-		for (std::uint32_t i = 0; i < count; i++)
-		{
-			const auto& function = runtime_function[i];
-
-			if (function.unwind_info_rva)
-			{
-				unwind_info_rvas.insert(rva_t{ function.unwind_info_rva });
-			}
-		}
-
 		for (std::uint32_t i = 0; i < count; i++, runtime_function++)
 		{
 			pe.add_data_rva_ref(&runtime_function->begin_address);
@@ -516,29 +521,40 @@ exception_context_t binwrite::parse_exception_directory(portable_executable_t& p
 				context.handler_function_rvas.push_back(pe.add_rva(runtime_function->begin_address));
 				context.handler_function_rvas.push_back(handler_rva);
 
-				if (parse_c_scope_table(pe, language_data, unwind_info_rvas, context.protected_code_ranges,
+				bool fh_catches_seh = false;
+
+				const auto current_function_range = [&]() -> exception_context_t::function_range_t
+					{
+						return { .begin = pe.add_rva(runtime_function->begin_address), .end =
+							pe.add_rva(runtime_function->end_address) };
+					};
+
+				if (parse_c_scope_table(pe, language_data, context.seh_code_ranges,
 					context.func_handlers[runtime_function->begin_address]))
 				{
 					spdlog::info("successfully parsed C_SCOPE_TABLE at 0x{:X}", runtime_function->unwind_info_rva);
 				}
 				else if (parse_cxx_funcinfo3(pe, language_data,
 					context.catch_handlers[runtime_function->begin_address],
-					unwind_info_rvas))
+					fh_catches_seh))
 				{
 					spdlog::info("successfully parsed FuncInfo3 at 0x{:X}", runtime_function->unwind_info_rva);
 
-					context.fh_function_ranges.push_back({ .begin = pe.add_rva(runtime_function->begin_address), .end =
-						pe.add_rva(runtime_function->end_address) });
+					context.fh_function_ranges.push_back(current_function_range());
 				}
 				else if (parse_cxx_funcinfo4(pe, runtime_function, language_data,
 					context.func_handlers[runtime_function->begin_address],
 					context.catch_handlers[runtime_function->begin_address],
-					unwind_info_rvas))
+					fh_catches_seh))
 				{
 					spdlog::info("successfully parsed FuncInfo4 at 0x{:X}", runtime_function->unwind_info_rva);
 
-					context.fh_function_ranges.push_back({ .begin = pe.add_rva(runtime_function->begin_address), .end =
-						pe.add_rva(runtime_function->end_address) });
+					context.fh_function_ranges.push_back(current_function_range());
+				}
+
+				if (fh_catches_seh)
+				{
+					context.seh_code_ranges.push_back(current_function_range());
 				}
 			}
 		}

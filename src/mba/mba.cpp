@@ -252,7 +252,8 @@ static std::vector<binwrite::instruction_t> mba_stub(const binwrite::disassemble
 	                            unused_register_family, second_unused_register_family);
 }
 
-void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block, const bool flag_dependant)
+void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block,
+                              const bool flag_dependant, const should_skip_memory_operands_fn& should_skip_memory_operands)
 {
 	const std::span<const binwrite::instruction_t> original_instructions = basic_block.instructions();
 	const std::vector instructions(original_instructions.begin(), original_instructions.end());
@@ -271,6 +272,12 @@ void binprotect::mba::do_pass(binwrite::binary_t& binary, binwrite::basic_block_
 
 		if (disassembled_instruction.rip_relative() || disassembled_instruction.rsp_relative() ||
 			disassembled_instruction.has_lock() || binary.find_rva_ref(instruction_rva))
+		{
+			continue;
+		}
+
+		if (should_skip_memory_operands && should_skip_memory_operands(disassembled_instruction, instruction_rva) &&
+			disassembled_instruction.has_visible_mem_operand())
 		{
 			continue;
 		}

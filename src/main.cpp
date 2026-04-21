@@ -42,19 +42,26 @@ static void write_file_to_disk(const std::string& path, const std::vector<std::u
 	}
 }
 
-static void mutate_basic_block(binwrite::binary_t& binary, const binprotect::config::obfuscation_t& config,
-                               binwrite::basic_block_t& basic_block)
+static void mutate_basic_block(const binprotect::config::obfuscation_t& config,
+                               binwrite::binary_t& binary, binwrite::basic_block_t& basic_block,
+                               const binwrite::exception_context_t& exceptions = {})
 {
+	const auto should_skip_memory_operands = [&exceptions]([[maybe_unused]] const binwrite::disassembled_instruction_t& instruction,
+	                                        const binwrite::rva_t rva) -> bool
+		{
+			return exceptions.is_in_seh_range(rva.value());
+		};
+
 	if (config.linear_substitution)
 	{
-		binprotect::linear_substitution::do_pass(binary, basic_block);
+		binprotect::linear_substitution::do_pass(binary, basic_block, should_skip_memory_operands);
 	}
 
 	bool is_first_pass = true;
 
 	for (std::uint32_t j = 0; j < config.mixed_boolean_arithmetic_count; j++)
 	{
-		binprotect::mba::do_pass(binary, basic_block, is_first_pass);
+		binprotect::mba::do_pass(binary, basic_block, is_first_pass, should_skip_memory_operands);
 
 		is_first_pass = false;
 	}
@@ -84,7 +91,7 @@ static void run_obfuscation_loop(
 		const auto basic_block_rva = basic_block->rva();
 		const auto block_rva_value = basic_block_rva->value();
 
-		if (config.virtual_machine && !context.is_in_protected_range(block_rva_value))
+		if (config.virtual_machine && !context.is_in_seh_range(block_rva_value))
 		{
 			if (const auto vm_context = binprotect::vm::do_pass(binary, *basic_block, vm_insertion_rva, virtual_machine_blocks))
 			{
@@ -100,7 +107,7 @@ static void run_obfuscation_loop(
 
 		if (!virtualized)
 		{
-			mutate_basic_block(binary, config, *basic_block);
+			mutate_basic_block(config, binary, *basic_block, context);
 		}
 	}
 }
@@ -126,7 +133,7 @@ static std::vector<std::shared_ptr<vm_context_t>> obfuscate_binary_blocks(
 			continue;
 		}
 
-		mutate_basic_block(binary, config, *basic_block);
+		mutate_basic_block(config, binary, *basic_block);
 	}
 
 	return vm_contexts;
@@ -138,14 +145,14 @@ static void obfuscate_exceptions_pe_binary(binwrite::portable_executable_t& pe, 
 
 	pe.disassemble();
 
-	binwrite::split_fh_prologues(pe, exceptions_context);
+	binwrite::split_prologues(pe, exceptions_context);
 	binwrite::rewrite_frame_pointers(pe, exceptions_context);
 
 	if (config.control_flow_flattening)
 	{
 		const auto is_block_fixed = [&exceptions_context](const binwrite::rva_t::value_type rva) -> bool
 			{
-				return exceptions_context.is_in_protected_range(rva);
+				return exceptions_context.is_in_seh_range(rva);
 			};
 
 		for (const auto& function : pe.functions())

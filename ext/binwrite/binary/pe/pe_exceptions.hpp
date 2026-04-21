@@ -32,7 +32,7 @@ namespace binwrite
 		std::unordered_map<rva_t::value_type, std::vector<rva_t>> func_handlers;
 		std::unordered_map<rva_t::value_type, std::vector<rva_t>> catch_handlers;
 		std::vector<std::shared_ptr<rva_t>> handler_function_rvas;
-		std::vector<function_range_t> protected_code_ranges;
+		std::vector<function_range_t> seh_code_ranges;
 
 		[[nodiscard]] bool is_fh_function(const rva_t::value_type function_rva) const
 		{
@@ -46,9 +46,9 @@ namespace binwrite
 				[rva](const auto& range) { return range.begin->value() <= rva && rva < range.end->value(); });
 		}
 
-		[[nodiscard]] bool is_in_protected_range(const rva_t::value_type rva) const
+		[[nodiscard]] bool is_in_seh_range(const rva_t::value_type rva) const
 		{
-			return std::ranges::any_of(protected_code_ranges,
+			return std::ranges::any_of(seh_code_ranges,
 				[rva](const auto& range) { return range.begin->value() <= rva && rva < range.end->value(); });
 		}
 
@@ -62,5 +62,5 @@ namespace binwrite
 	exception_context_t parse_exception_directory(portable_executable_t& pe);
 	void parse_throw_info(portable_executable_t& pe, const rtti_info_t& rtti_result);
 	void rewrite_frame_pointers(portable_executable_t& pe, exception_context_t& context);
-	void split_fh_prologues(portable_executable_t& pe, const exception_context_t& context);
+	void split_prologues(portable_executable_t& pe, const exception_context_t& context);
 }

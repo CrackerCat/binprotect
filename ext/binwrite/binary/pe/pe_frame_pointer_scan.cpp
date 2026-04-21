@@ -562,7 +562,7 @@ void binwrite::adjust_catch_handler_displacements(
 	}
 }
 
-void binwrite::split_fh_prologues(portable_executable_t& pe, const exception_context_t& context)
+void binwrite::split_prologues(portable_executable_t& pe, const exception_context_t& context)
 {
 	for (const auto& prologue : context.fh_prologues)
 	{

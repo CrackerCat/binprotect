@@ -23,6 +23,7 @@ namespace binwrite
 		[[nodiscard]] bool relative() const;
 		[[nodiscard]] bool rip_relative() const;
 		[[nodiscard]] bool rsp_relative() const;
+		[[nodiscard]] bool has_visible_mem_operand() const;
 
 		[[nodiscard]] bool reads_register_family(register_family_t family) const;
 		[[nodiscard]] bool writes_register_family(register_family_t family) const;

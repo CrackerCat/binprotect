@@ -25,6 +25,19 @@ bool binwrite::disassembled_instruction_t::rsp_relative() const
 	return reads_stack_pointer() || writes_stack_pointer();
 }
 
+bool binwrite::disassembled_instruction_t::has_visible_mem_operand() const
+{
+	for (const auto& operand : visible_operands())
+	{
+		if (operand.is_mem())
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool binwrite::disassembled_instruction_t::reads_register_family(const register_family_t family) const
 {
 	for (const auto& operand : operands_)

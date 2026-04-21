@@ -118,10 +118,12 @@ static void substitute_imm_operand(std::vector<binwrite::instruction_t>& instruc
 	instructions.push_back(sub_instruction(operands[1], unused_register).value());
 
 	instructions.push_back(popfq_instruction().value());
+	instructions.push_back(push_instruction(unused_register_family.qword).value()); // alignment of stack
 
 	const auto reassembled_instruction = binwrite::make_assembler_instruction(instruction_disassembly);
 
 	instructions.push_back(reassembled_instruction->compile().value());
+	instructions.push_back(pop_instruction(unused_register_family.qword).value()); // restore that alignment
 	instructions.push_back(pop_instruction(unused_register_family.qword).value());
 }
 
@@ -168,14 +170,17 @@ static void substitute_mem_operand(std::vector<binwrite::instruction_t>& instruc
 	operand.set_mem(mem);
 
 	instructions.push_back(popfq_instruction().value());
+	instructions.push_back(push_instruction(unused_register_family.qword).value()); // alignment of stack
 
 	const auto reassembled_instruction = binwrite::make_assembler_instruction(instruction_disassembly);
 
 	instructions.push_back(reassembled_instruction->compile().value());
+	instructions.push_back(pop_instruction(unused_register_family.qword).value()); // restore that alignment
 	instructions.push_back(pop_instruction(unused_register_family.qword).value());
 }
 
-static std::vector<binwrite::instruction_t> substitute_single_instruction(binwrite::disassembled_instruction_t& instruction_disassembly)
+static std::vector<binwrite::instruction_t> substitute_single_instruction(
+	binwrite::disassembled_instruction_t& instruction_disassembly)
 {
 	const auto operands = instruction_disassembly.visible_operands();
 
@@ -193,6 +198,8 @@ static std::vector<binwrite::instruction_t> substitute_single_instruction(binwri
 
 	std::vector<binwrite::instruction_t> instructions = { };
 
+	bool substituted = false;
+
 	for (auto& operand : operands)
 	{
 		if (operand.is_reg())
@@ -204,44 +211,65 @@ static std::vector<binwrite::instruction_t> substitute_single_instruction(binwri
 			{
 				return { };
 			}
-		}
-		else if (operand.is_imm())
+		} 
+		else if (!substituted && operand.is_imm())
 		{
 			substitute_imm_operand(instructions, instruction_disassembly, operand, operand_size, unused_register_family, unused_register);
 
-			break;
+			substituted = true;
 		}
 		else if (operand.is_mem())
 		{
-			substitute_mem_operand(instructions, instruction_disassembly, operand, unused_register_family);
+			if (!substituted)
+			{
+				substitute_mem_operand(instructions, instruction_disassembly, operand, unused_register_family);
 
-			break;
+				substituted = true;
+			}
+			else
+			{
+				auto mem = operand.mem();
+
+				if (mem.base == binwrite::register_t::rsp)
+				{
+					const std::int64_t value = mem.has_displacement ? mem.displacement : 0;
+
+					mem.displacement = value + 16;
+					mem.has_displacement = true;
+
+					operand.set_mem(mem);
+				}
+			}
 		}
 	}
-
-	instructions.insert(instructions.begin(), sub_instruction(binwrite::register_t::rsp, encode_unsigned_imm_operand(8)).value());
-	instructions.push_back(add_instruction(binwrite::register_t::rsp, encode_unsigned_imm_operand(8)).value());
 
 	return instructions;
 }
 
-void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block)
+void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwrite::basic_block_t& basic_block,
+                                              const should_skip_memory_operands_fn& should_skip_memory_operands)
 {
 	const std::span<const binwrite::instruction_t> original_instructions = basic_block.instructions();
-	std::vector instructions(original_instructions.begin(), original_instructions.end());
+	const std::vector instructions(original_instructions.begin(), original_instructions.end());
 
 	std::uint32_t added = 0;
 
 	for (std::uint32_t i = 1; i < instructions.size(); i++)
 	{
-		auto& instruction = instructions[i];
-		auto& disassembled_instruction = instruction.disassemble();
+		const auto& instruction = instructions[i];
+		auto disassembled_instruction = instruction.disassemble();
 
 		const std::uint32_t basic_block_index = i + added;
 		const binwrite::rva_t instruction_rva = basic_block.instruction_rva(basic_block_index);
 
 		if (disassembled_instruction.rip_relative() || disassembled_instruction.writes_stack_pointer() ||
 			disassembled_instruction.has_lock() || binary.find_rva_ref(instruction_rva))
+		{
+			continue;
+		}
+
+		if (should_skip_memory_operands && should_skip_memory_operands(disassembled_instruction, instruction_rva) &&
+			disassembled_instruction.has_visible_mem_operand())
 		{
 			continue;
 		}
@@ -254,7 +282,9 @@ void binprotect::linear_substitution::do_pass(binwrite::binary_t& binary, binwri
 		}
 		catch (const std::exception&)
 		{
-			spdlog::error("unable to linearly substitute '{}'", disassembled_instruction.to_string());
+			const auto& original_disassembly = instruction.disassemble();
+
+			spdlog::error("unable to linearly substitute '{}'", original_disassembly.to_string());
 
 			continue;
 		}
