@@ -22,7 +22,7 @@ void binwrite::section_t::insert(binary_t& binary, const rva_t section_offset, c
 
 	const rva_t insertion_rva(rva_.value() + section_offset.value());
 
-	buffer.insert_range(buffer.begin() + insertion_rva.value(), data);
+	buffer.insert(buffer.begin() + insertion_rva.value(), data.begin(), data.end());
 
 	binary.update_rvas(insertion_rva, static_cast<rva_t::size_type>(data.size()), true, false);
 

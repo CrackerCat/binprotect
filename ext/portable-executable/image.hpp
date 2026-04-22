@@ -15,6 +15,7 @@
 
 #include <optional>
 #include <vector>
+#include <cstring>
 
 namespace portable_executable
 {

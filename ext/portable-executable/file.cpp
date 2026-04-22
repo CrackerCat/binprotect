@@ -2,6 +2,7 @@
 #include "image.hpp"
 
 #include <fstream>
+#include <cstring>
 
 portable_executable::file_t::file_t(const std::string_view file_path) : m_file_path(file_path)
 {

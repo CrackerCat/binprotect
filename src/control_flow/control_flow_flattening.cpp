@@ -4,6 +4,8 @@
 #include <binwrite/disassembler/disassembler.hpp>
 #include <binwrite/util/random.hpp>
 #include <spdlog/spdlog.h>
+#include <algorithm>
+#include <ranges>
 
 struct cff_block_t
 {

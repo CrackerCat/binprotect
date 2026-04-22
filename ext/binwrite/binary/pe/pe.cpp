@@ -3,6 +3,7 @@
 #include "../../util/serialize.hpp"
 
 #include <spdlog/spdlog.h>
+#include <algorithm>
 
 using reloc_pages_t = std::map<std::uint32_t, std::vector<portable_executable::relocation_entry_descriptor_t>>;
 
@@ -113,7 +114,7 @@ static void compile_relocation_block_descriptor(std::vector<std::uint8_t>& bytes
 
 	const auto serialized_block_descriptor = binwrite::util::serialize_bytes(block_descriptor);
 
-	bytes.insert_range(bytes.end(), serialized_block_descriptor);
+	bytes.insert(bytes.end(), serialized_block_descriptor.begin(), serialized_block_descriptor.end());
 }
 
 static void process_relocation_block_padding(std::vector<portable_executable::relocation_entry_descriptor_t>& entry_descriptors)
@@ -146,7 +147,7 @@ static std::vector<std::uint8_t> compile_relocation_directory(reloc_pages_t& rel
 		{
 			const auto serialized_entry_descriptor = binwrite::util::serialize_bytes(entry_descriptor);
 
-			bytes.insert_range(bytes.end(), serialized_entry_descriptor);
+			bytes.insert(bytes.end(), serialized_entry_descriptor.begin(), serialized_entry_descriptor.end());
 		}
 	}
 

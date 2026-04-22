@@ -66,7 +66,7 @@ static std::vector<binwrite::decoded_operand_t> collect_block_operands(binwrite:
 		const auto& instruction_disassembly = instruction.disassemble();
 		const auto& visible_operands = instruction_disassembly.visible_operands();
 
-		block_operands.insert_range(block_operands.end(), visible_operands);
+		block_operands.insert(block_operands.end(), visible_operands.begin(), visible_operands.end());
 	}
 
 	return block_operands;

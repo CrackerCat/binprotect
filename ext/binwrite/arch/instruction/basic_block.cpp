@@ -116,7 +116,7 @@ std::vector<std::uint8_t> group_instruction_bytes(const std::span<const binwrite
 	{
 		const auto current_bytes = instruction.bytes();
 
-		bytes.insert_range(bytes.end(), current_bytes);
+		bytes.insert(bytes.end(), current_bytes.begin(), current_bytes.end());
 	}
 
 	return bytes;
@@ -149,7 +149,7 @@ void binwrite::basic_block_t::push(binary_t& binary, const std::span<const instr
 		binary.insert(rva, bytes, inclusive);
 	}
 
-	instructions_.insert_range(instructions_.end(), instructions);
+	instructions_.insert(instructions_.end(), instructions.begin(), instructions.end());
 	rebuild_offsets();
 }
 
@@ -167,7 +167,7 @@ void binwrite::basic_block_t::insert(binary_t& binary, const std::span<const ins
 
 	const auto begin = instructions_.begin() + index;
 
-	instructions_.insert_range(begin, instructions);
+	instructions_.insert(begin, instructions.begin(), instructions.end());
 	rebuild_offsets();
 }
 

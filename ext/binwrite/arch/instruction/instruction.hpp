@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cstring>
 #include <span>
 
 #include "../../disassembler/disassembler.hpp"

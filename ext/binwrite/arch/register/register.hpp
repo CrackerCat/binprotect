@@ -1,6 +1,7 @@
 #pragma once
 #include <Zydis/Zydis.h>
 
+#include <cstdint>
 #include <array>
 #include <span>
 
@@ -146,8 +147,8 @@ namespace binwrite
 
 		bool operator==(const register_family_t& other) const;
 
-		static [[nodiscard]] register_family_t find(register_t qword);
-		static [[nodiscard]] register_family_t random(std::span<const register_family_t> excluding = { });
+		[[nodiscard]] static register_family_t find(register_t qword);
+		[[nodiscard]] static register_family_t random(std::span<const register_family_t> excluding = { });
 
 		static const register_family_t none;
 

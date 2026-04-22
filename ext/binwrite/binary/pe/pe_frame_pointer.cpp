@@ -317,11 +317,11 @@ static void apply_frame_pointer_unwind_info(binwrite::portable_executable_t& pe,
 	std::vector<std::uint8_t> start_bytes;
 	std::vector<std::uint8_t> end_bytes;
 
-	start_bytes.insert_range(start_bytes.end(), frame_pointer_bytes);
-	start_bytes.insert_range(start_bytes.end(), frame_pointer_bytes);
+	start_bytes.insert(start_bytes.end(), frame_pointer_bytes.begin(), frame_pointer_bytes.end());
+	start_bytes.insert(start_bytes.end(), frame_pointer_bytes.begin(), frame_pointer_bytes.end());
 
-	end_bytes.insert_range(end_bytes.end(), push_bytes);
-	end_bytes.insert_range(end_bytes.end(), push_bytes);
+	end_bytes.insert(end_bytes.end(), push_bytes.begin(), push_bytes.end());
+	end_bytes.insert(end_bytes.end(), push_bytes.begin(), push_bytes.end());
 
 	if (!copied_unwind_info.empty())
 	{
@@ -348,8 +348,8 @@ static void apply_frame_pointer_unwind_info(binwrite::portable_executable_t& pe,
 			const std::uint32_t codes_end_offset = static_cast<std::uint32_t>(codes_end - reinterpret_cast<const std::uint8_t*>(unwind_info));
 			const std::uint32_t codes_start_offset = static_cast<std::uint32_t>(codes_start - reinterpret_cast<const std::uint8_t*>(unwind_info));
 
-			copied_unwind_info.insert_range(copied_unwind_info.begin() + codes_end_offset, end_bytes);
-			copied_unwind_info.insert_range(copied_unwind_info.begin() + codes_start_offset, start_bytes);
+			copied_unwind_info.insert(copied_unwind_info.begin() + codes_end_offset, end_bytes.begin(), end_bytes.end());
+			copied_unwind_info.insert(copied_unwind_info.begin() + codes_start_offset, start_bytes.begin(), start_bytes.end());
 
 			unwind_info_insertions.emplace_back(unwind_info_ref, copied_unwind_info);
 			break;

@@ -53,7 +53,7 @@ void vm_context_t::process_instruction(const binwrite::disassembled_instruction_
 
 	unload_instruction(instruction_disassembly, visible_operands, obfuscated_operands);
 
-	current_instruction_.unload.insert_range(current_instruction_.unload.end(), hidden_unload_instructions);
+	current_instruction_.unload.insert(current_instruction_.unload.end(), hidden_unload_instructions.begin(), hidden_unload_instructions.end());
 }
 
 void vm_context_t::compile_instruction(binwrite::binary_t& binary)

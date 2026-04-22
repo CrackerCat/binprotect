@@ -21,7 +21,7 @@ portable_executable::unwind_register_t binwrite::get_unwind_register(const regis
 
 static void process_unwind_info(binary_t& binary, const rva_t function_rva, const portable_executable::unwind_info_t* const info)
 {
-	if (info->flags & UNW_FLAG_CHAININFO)
+	if (info->has_chained_function())
 	{
 		return;
 	}

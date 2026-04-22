@@ -1,8 +1,9 @@
 #include "binary.hpp"
-#include <spdlog/spdlog.h>
-#include <ranges>
-
 #include "../disassembler/disassembler.hpp"
+
+#include <spdlog/spdlog.h>
+#include <algorithm>
+#include <ranges>
 
 void binwrite::binary_t::parse()
 {
@@ -12,7 +13,7 @@ void binwrite::binary_t::parse()
 
 void binwrite::binary_t::insert(const rva_t rva, const std::span<const std::uint8_t> data, const bool inclusive)
 {
-	buffer_.insert_range(buffer_.begin() + rva.value(), data);
+	buffer_.insert(buffer_.begin() + rva.value(), data.begin(), data.end());
 
 	update_rvas(rva, static_cast<rva_t::size_type>(data.size()), inclusive);
 }

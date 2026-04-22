@@ -136,7 +136,9 @@ std::shared_ptr<vm_context_t> binprotect::vm::do_pass(binwrite::binary_t& binary
 
 	context->exit_virtualized_state(binary);
 
-	virtual_machine_blocks.insert_range(virtual_machine_blocks.end(), context->basic_blocks());
+	const auto& context_blocks = context->basic_blocks();
+
+	virtual_machine_blocks.insert(virtual_machine_blocks.end(), context_blocks.begin(), context_blocks.end());
 
 	return context;
 }

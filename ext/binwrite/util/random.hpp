@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <random>
 #include <ranges>
 #include <span>

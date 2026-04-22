@@ -4,8 +4,10 @@
 #include <binwrite/util/random.hpp>
 #include "../assembler/assembler.hpp"
 
-#include <functional>
 #include <spdlog/spdlog.h>
+#include <functional>
+#include <algorithm>
+#include <vector>
 
 using mba_callback_t = std::function<void(std::vector<binwrite::instruction_t>& instructions,
 	const binwrite::encoder_operand_t& x,
@@ -191,7 +193,7 @@ static void emulate_flag_behaviour(std::vector<binwrite::instruction_t>& instruc
 		unused_register, y, second_unused_register_family,
 		second_unused_register);
 
-	instructions.insert_range(instructions.end(), flag_emulation_instructions);
+	instructions.insert(instructions.end(), flag_emulation_instructions.begin(), flag_emulation_instructions.end());
 }
 
 static std::vector<binwrite::instruction_t> execute_mba_callback(const mba_callback_t& callback,
