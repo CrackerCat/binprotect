@@ -65,34 +65,40 @@ bool binwrite::symbols::map::parse(binary_t& binary, const std::filesystem::path
 			continue;
 		}
 
-		const std::uint64_t function_address = hex_to_int(regex_matches[4]);
+		const std::uint64_t symbol_address = hex_to_int(regex_matches[4]);
 
-		if (function_address < image_base)
+		if (symbol_address < image_base)
 		{
-			spdlog::warn("corrupted function address found whilst parsing .map");
+			spdlog::warn("corrupted symbol address found whilst parsing .map");
 
 			continue;
 		}
 
-		const auto function_name = regex_matches[3].str();
+		const auto symbol_name = regex_matches[3].str();
 
-		if (function_name.empty() || function_name[0] == '.' ||
-			function_name[0] == '$' ||
-			function_name.contains("__IMPORT_DESCRIPTOR_") ||
-			function_name == "__NULL_IMPORT_DESCRIPTOR" ||
-			function_name.starts_with("??_C@_"))
+		if (symbol_name.empty() || symbol_name[0] == '.' ||
+			symbol_name[0] == '$' ||
+			symbol_name.contains("__IMPORT_DESCRIPTOR_") ||
+			symbol_name == "__NULL_IMPORT_DESCRIPTOR")
 		{
 			continue;
 		}
 
-		const auto function_rva = rva_t{ static_cast<std::uint32_t>(function_address - image_base) };
+		const auto symbol_rva = rva_t{ static_cast<std::uint32_t>(symbol_address - image_base) };
 
-		if (binary.find_function(function_rva))
+		if (binary.find_function(symbol_rva) || binary.is_data_symbol(symbol_rva))
 		{
 			continue;
 		}
 
-		binary.create_function(function_name, function_rva);
+		if (const bool is_string = symbol_name.starts_with("??_C@_"))
+		{
+			binary.add_data_symbol(symbol_rva);
+		}
+		else
+		{
+			binary.create_function(symbol_name, symbol_rva);
+		}
 	}
 
 	return true;

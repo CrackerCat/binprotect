@@ -167,7 +167,8 @@ void binwrite::binary_t::process_instruction_rip_relativity(const disassembled_i
 
 			add_to_disassembly_queue(target_rva);
 		}
-		else if (is_risky_reference && is_in_code_section(*target_rva) && is_definitely_in_code_range(*target_rva))
+		else if (is_risky_reference && is_in_code_section(*target_rva) &&
+			(!is_data_symbol(*target_rva) || is_definitely_in_code_range(*target_rva)))
 		{
 			risky_references.push_back(target_rva);
 		}

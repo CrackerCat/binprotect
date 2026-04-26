@@ -35,15 +35,25 @@ void process_local_symbols(binwrite::binary_t& binary, const PDB::RawFile& raw_f
 		}
 
 		const auto& pub = record->data.S_PUB32;
+		const auto underlying_flags = PDB_AS_UNDERLYING(pub.flags);
 
-		if ((PDB_AS_UNDERLYING(pub.flags) & PDB_AS_UNDERLYING(PDB::CodeView::DBI::PublicSymbolFlags::Function)) == 0)
+		const auto rva = binwrite::rva_t{ sections.ConvertSectionOffsetToRVA(pub.section, pub.offset) };
+
+		if (!rva.value())
 		{
 			continue;
 		}
 
-		if (const auto rva = sections.ConvertSectionOffsetToRVA(pub.section, pub.offset))
+		const bool is_function = (underlying_flags & PDB_AS_UNDERLYING(PDB::CodeView::DBI::PublicSymbolFlags::Function));
+		const bool is_data = !(underlying_flags & PDB_AS_UNDERLYING(PDB::CodeView::DBI::PublicSymbolFlags::Code));
+
+		if (is_function)
 		{
-			binary.create_function(pub.name, binwrite::rva_t{ rva });
+			binary.create_function(pub.name, rva);
+		}
+		else if (is_data)
+		{
+			binary.add_data_symbol(rva);
 		}
 	}
 }
@@ -70,17 +80,28 @@ void process_global_symbols(binwrite::binary_t& binary, const PDB::RawFile& raw_
 
 		const auto kind = record->header.kind;
 
-		if (kind != symbol_kind::S_GPROC32 && kind != symbol_kind::S_LPROC32 &&
-			kind != symbol_kind::S_GPROC32_ID && kind != symbol_kind::S_LPROC32_ID)
-		{
-			continue;
-		}
+		const bool is_proc = kind == symbol_kind::S_GPROC32 || kind == symbol_kind::S_LPROC32 ||
+			kind == symbol_kind::S_GPROC32_ID || kind == symbol_kind::S_LPROC32_ID;
 
-		const auto& proc = record->data.S_LPROC32;
-	
-		if (const auto rva = sections.ConvertSectionOffsetToRVA(proc.section, proc.offset))
+		const bool is_data = kind == symbol_kind::S_GDATA32 || kind == symbol_kind::S_LDATA32;
+
+		if (is_proc)
 		{
-			binary.create_function(proc.name, binwrite::rva_t{ rva });
+			const auto& proc = record->data.S_LPROC32;
+
+			if (const auto rva = sections.ConvertSectionOffsetToRVA(proc.section, proc.offset))
+			{
+				binary.create_function(proc.name, binwrite::rva_t{ rva });
+			}
+		}
+		else if (is_data)
+		{
+			const auto& data = record->data.S_LDATA32;
+
+			if (const auto rva = sections.ConvertSectionOffsetToRVA(data.section, data.offset))
+			{
+				binary.add_data_symbol(binwrite::rva_t{ rva });
+			}
 		}
 	}
 }

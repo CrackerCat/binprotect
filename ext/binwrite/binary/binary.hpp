@@ -78,6 +78,9 @@ namespace binwrite
 
 		[[nodiscard]] std::vector<std::shared_ptr<section_t>> ordered_sections() const;
 
+		void add_data_symbol(rva_t rva);
+		[[nodiscard]] bool is_data_symbol(rva_t rva) const;
+
 		[[nodiscard]] std::shared_ptr<section_t> find_section(const std::string& name) const;
 		[[nodiscard]] std::shared_ptr<section_t> code_section() const;
 		[[nodiscard]] std::shared_ptr<section_t> data_section() const;
@@ -187,6 +190,7 @@ namespace binwrite
 		std::deque<pending_disasm_t> disassembly_queue_;
 		std::unordered_set<rva_t::value_type> disassembly_queue_set_;
 
+		std::vector<std::shared_ptr<rva_t>> data_symbols_;
 		std::vector<std::shared_ptr<function_t>> functions_;
 
 		std::vector<std::shared_ptr<relocation_t>> relocations_;

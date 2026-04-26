@@ -296,6 +296,24 @@ std::vector<std::shared_ptr<binwrite::section_t>> binwrite::binary_t::ordered_se
 	return ordered_sections;
 }
 
+void binwrite::binary_t::add_data_symbol(const rva_t rva)
+{
+	data_symbols_.push_back(add_rva(rva));
+}
+
+bool binwrite::binary_t::is_data_symbol(const rva_t rva) const
+{
+	for (const auto& data_symbol : data_symbols_)
+	{
+		if (*data_symbol == rva)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 std::shared_ptr<binwrite::section_t> binwrite::binary_t::find_section(const std::string& name) const
 {
 	const auto it = sections_.find(name);
