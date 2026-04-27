@@ -251,8 +251,8 @@ std::int32_t main(const std::int32_t argc, const char** const argv)
 
 	bool exceptions_support = pe.has_exceptions_directory();
 
-	if (config->symbol_file_path.empty() || (!binwrite::symbols::map::parse(pe, config->symbol_file_path) &&
-		!binwrite::symbols::pdb::parse(pe, config->symbol_file_path)))
+	if (config->symbol_file_path.empty() || (!binwrite::symbols::pdb::parse(pe, config->symbol_file_path) &&
+		!binwrite::symbols::map::parse(pe, config->symbol_file_path)))
 	{
 		spdlog::warn("unable to find or parse symbol file '{}'", config->symbol_file_path);
 
