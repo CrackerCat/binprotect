@@ -7,7 +7,7 @@ binwrite::disassembler_t::disassembler_t()
 }
 
 std::optional<binwrite::disassembled_instruction_t> binwrite::disassembler_t::disassemble(
-	const std::uint8_t* const instruction) const
+	const std::span<const std::uint8_t> instruction) const
 {
 	ZydisDecoderContext context;
 	ZydisDecodedInstruction decoded_instruction;
@@ -29,12 +29,16 @@ std::optional<binwrite::disassembled_instruction_t> binwrite::disassembler_t::di
 	return disassembled_instruction_t{ decoded_instruction, std::move(wrapped_operands) };
 }
 
-bool binwrite::disassembler_t::decode_instruction(const std::uint8_t* const instruction,
+std::optional<binwrite::disassembled_instruction_t> binwrite::disassembler_t::disassemble(
+	const std::uint8_t* const instruction) const
+{
+	return disassemble(std::span<const std::uint8_t>{ instruction, instruction + ZYDIS_MAX_INSTRUCTION_LENGTH });
+}
+
+bool binwrite::disassembler_t::decode_instruction(const std::span<const std::uint8_t> instruction,
 	ZydisDecoderContext* const context, ZydisDecodedInstruction* const decoded_instruction) const
 {
-	constexpr ZyanUSize instruction_length = ZYDIS_MAX_INSTRUCTION_LENGTH;
-
-	const auto status = ZydisDecoderDecodeInstruction(&decoder_, context, instruction, instruction_length, decoded_instruction);
+	const auto status = ZydisDecoderDecodeInstruction(&decoder_, context, instruction.data(), instruction.size(), decoded_instruction);
 
 	return ZYAN_SUCCESS(status);
 }

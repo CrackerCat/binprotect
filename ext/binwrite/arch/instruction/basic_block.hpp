@@ -33,6 +33,8 @@ namespace binwrite
 			skip_ = state;
 		}
 
+		void clear_disassembly();
+
 		[[nodiscard]] rva_t end_rva() const;
 		[[nodiscard]] rva_t instruction_rva(size_type index) const;
 		[[nodiscard]] size_type instruction_index(rva_t target_rva) const;

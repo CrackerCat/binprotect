@@ -1,7 +1,9 @@
 #pragma once
 #include <array>
+#include <memory>
 #include <cstring>
 #include <span>
+#include <stdexcept>
 
 #include "../../disassembler/disassembler.hpp"
 
@@ -19,24 +21,47 @@ namespace binwrite
 		explicit instruction_t(const const_value_type bytes, disassembled_instruction_t disassembly)
 				:	bytes_({}),
 					size_(static_cast<size_type>(bytes.size())),
-					disassembly_(std::move(disassembly))
+					disassembly_(std::make_unique<disassembled_instruction_t>(std::move(disassembly)))
 		{
+			if (max_size < size_)
+			{
+				throw std::runtime_error("instruction bytes too long");
+			}
+
 			std::memcpy(bytes_.data(), bytes.data(), bytes.size());
 		}
 
 		explicit instruction_t(const const_value_type bytes)
 				:	bytes_({}),
 					size_(static_cast<size_type>(bytes.size())),
-					disassembly_(disassembled_instruction_t())
+					disassembly_(nullptr)
 		{
-			disassembler_t disassembler;
-
-			std::array<std::uint8_t, 15> correctly_sized_bytes = { };
-			std::memcpy(correctly_sized_bytes.data(), bytes.data(), bytes.size());
-
-			disassembly_ = disassembler.disassemble(correctly_sized_bytes.data()).value();
+			if (max_size < size_)
+			{
+				throw std::runtime_error("instruction bytes too long");
+			}
 
 			std::memcpy(bytes_.data(), bytes.data(), bytes.size());
+		}
+
+		instruction_t(const instruction_t& right)
+				:	size_(right.size_),
+					disassembly_(nullptr)
+		{
+			std::memcpy(bytes_.data(), right.bytes_.data(), right.size_);
+		}
+
+		instruction_t& operator=(const instruction_t& right)
+		{
+			if (this != &right)
+			{
+				disassembly_.reset();
+				size_ = right.size_;
+
+				std::memcpy(bytes_.data(), right.bytes_.data(), right.size_);
+			}
+
+			return *this;
 		}
 
 		[[nodiscard]] value_type bytes()
@@ -56,18 +81,46 @@ namespace binwrite
 
 		[[nodiscard]] disassembled_instruction_t& disassemble()
 		{
-			return disassembly_;
+			create_disassembly();
+
+			return *disassembly_;
 		}
 
 		[[nodiscard]] const disassembled_instruction_t& disassemble() const
 		{
-			return disassembly_;
+			create_disassembly();
+
+			return *disassembly_;
+		}
+
+		void clear_disassembly()
+		{
+			disassembly_.reset();
 		}
 
 	protected:
+		void create_disassembly() const
+		{
+			if (disassembly_)
+			{
+				return;
+			}
+
+			const disassembler_t disassembler;
+
+			auto disassembly = disassembler.disassemble({ bytes_.data(), size_ });
+
+			if (!disassembly)
+			{
+				throw std::runtime_error("unable to disassemble instruction");
+			}
+
+			disassembly_ = std::make_unique<disassembled_instruction_t>(std::move(*disassembly));
+		}
+
 		std::array<std::uint8_t, max_size> bytes_;
 		size_type size_;
 
-		disassembled_instruction_t disassembly_;
+		mutable std::unique_ptr<disassembled_instruction_t> disassembly_ = {};
 	};
 }

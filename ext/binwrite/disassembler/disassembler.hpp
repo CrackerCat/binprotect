@@ -14,10 +14,11 @@ namespace binwrite
 	public:
 		disassembler_t();
 
+		[[nodiscard]] std::optional<disassembled_instruction_t> disassemble(std::span<const std::uint8_t> instruction) const;
 		[[nodiscard]] std::optional<disassembled_instruction_t> disassemble(const std::uint8_t* instruction) const;
 
 	protected:
-		[[nodiscard]] bool decode_instruction(const std::uint8_t* instruction, ZydisDecoderContext* context, ZydisDecodedInstruction* decoded_instruction) const;
+		[[nodiscard]] bool decode_instruction(std::span<const std::uint8_t> instruction, ZydisDecoderContext* context, ZydisDecodedInstruction* decoded_instruction) const;
 		[[nodiscard]] bool decode_operands(const ZydisDecoderContext* context, const ZydisDecodedInstruction* instruction, std::span<ZydisDecodedOperand> operands) const;
 
 		ZydisDecoder decoder_;

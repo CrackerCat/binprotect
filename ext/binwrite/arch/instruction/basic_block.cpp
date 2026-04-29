@@ -4,6 +4,14 @@
 
 #include "../../binary/binary.hpp"
 
+void binwrite::basic_block_t::clear_disassembly()
+{
+	for (auto& instruction : instructions_)
+	{
+		instruction.clear_disassembly();
+	}
+}
+
 binwrite::rva_t binwrite::basic_block_t::end_rva() const
 {
 	return rva_t{ rva_->value() + total_size_ };

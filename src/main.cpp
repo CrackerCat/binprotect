@@ -109,6 +109,8 @@ static void run_obfuscation_loop(
 		{
 			mutate_basic_block(config, binary, *basic_block, context);
 		}
+
+		basic_block->clear_disassembly();
 	}
 }
 
@@ -134,6 +136,8 @@ static std::vector<std::shared_ptr<vm_context_t>> obfuscate_binary_blocks(
 		}
 
 		mutate_basic_block(config, binary, *basic_block);
+
+		basic_block->clear_disassembly();
 	}
 
 	return vm_contexts;
