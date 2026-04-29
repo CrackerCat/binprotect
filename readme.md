@@ -1,3 +1,7 @@
+# Build instructions
+
+See [4. Building](https://github.com/noahware/binprotect#4-building) for build instructions.
+
 # Contents
 1. Introduction
 2. Binary rewriter
