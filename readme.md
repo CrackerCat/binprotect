@@ -787,15 +787,11 @@ This ensures that whenever the end of a basic block is reached or the flags are 
 
 # 4. Building
 
-Below are example commands to build the project using CMake. Begin execution of these commands from the root directory of the project. Replace 'PATH_TO_VCPKG' with the directory path of a vcpkg installation.
+Below are example commands to build the project using CMake. Begin execution of these commands from the root directory of the project.
 
 ```  
-mkdir build  
-cd build
-
-cmake .. -DCMAKE_TOOLCHAIN_FILE=PATH_TO_VCPKG/scripts/buildsystems/vcpkg.cmake
-
-cmake --build .   
+cmake -B build
+cmake --build build
 ```
 
 On Windows systems with Visual Studio installed, the last command can be skipped as the project can be built through the generated Visual Studio solution files (.sln). The Visual Studio solution files will be in the 'build/' folder.

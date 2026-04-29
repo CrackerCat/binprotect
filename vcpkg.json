@@ -1,7 +1,0 @@
-{
-  "dependencies": [
-    "zydis",
-    "argparse",
-    "spdlog"
-  ]
-}

@@ -1,0 +1,33 @@
+[cmake]
+version = "3.21"
+cmkr-include = "cmake/cmkr.cmake"
+
+[project]
+name = "binprotect"
+languages = ["CXX"]
+
+[variables]
+CMAKE_CXX_STANDARD = "23"
+CMAKE_CXX_STANDARD_REQUIRED = true
+
+[fetch-content.spdlog]
+git = "https://github.com/gabime/spdlog.git"
+tag = "v1.17.0"
+shallow = true
+
+[fetch-content.Zydis]
+git = "https://github.com/zyantific/zydis.git"
+tag = "v4.1.1"
+shallow = true
+
+[fetch-content.argparse]
+git = "https://github.com/p-ranav/argparse.git"
+tag = "v3.2"
+shallow = true
+
+[target.binprotect]
+type = "executable"
+sources = ["src/**.cpp", "src/**.hpp", "src/**.h", "ext/**.cpp", "ext/**.hpp", "ext/**.h"]
+include-directories = ["ext"]
+link-libraries = ["spdlog::spdlog", "Zydis", "argparse::argparse"]
+msvc.compile-options = ["/utf-8"]
